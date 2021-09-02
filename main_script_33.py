@@ -11,7 +11,7 @@ import main_function as main
 
 M=p.M
 
-dt1=200
+dt1=100
 # Length of the run in time steps
 tmax = p.tmax
 #surface gravity
@@ -70,13 +70,18 @@ k1= 0.0002#0.0002
 k2vec=[0.0004]#[0.182606]
 #k2vec=[1*10**(-2),2*10**(-2)]
 #k2vec=[0.0002]
+
+
+tauradnow=3600*24*1 #in Earth days
+taudragnow=3600*24*10#if set to -1, means infinity
+
 for i in range(len(k2vec)):
 
     k2=k2vec[i]
     #print(k2)
     #main.main(M,dt1,tmax,g,taurad,taudrag,Phibar,DPhieq,omega,a,a1,test,minlevel, maxlevel, forcflag,diffflag,modalflag,alpha,plotflag, plotfreq,contflag,saveflag,savefreq,k1,k2,pressure,Cp,R,sigmaSB)
     #main.main(M,dt1,tmax,Phibar, omega, a, test=p.test, DPhieq=DPhieq, plotflag=plotflag, plotfreq=plotfreq, minlevel=6.4, maxlevel=6.8, saveflag=1, savefreq=150, k1=k1, k2=k2,taudrag=p.taudrag, taurad=p.taurad,R=p.R, diffflag=p.diffflag)
-    main.main(M,dt1,tmax,Phibar, omega, a, test=p.test, DPhieq=p.DPhieq, plotflag=p.plotflag, plotfreq=p.plotfreq, minlevel=6.4, maxlevel=6.8, saveflag=p.saveflag, savefreq=p.savefreq, k1=k1, k2=k2,taudrag=p.taudrag, taurad=p.taurad, diffflag=p.diffflag,g=p.g)
+    main.main(M,dt1,tmax,Phibar, omega, a, test=p.test, DPhieq=p.DPhieq, plotflag=p.plotflag, plotfreq=p.plotfreq, minlevel=6.4, maxlevel=6.8, saveflag=p.saveflag, savefreq=p.savefreq, k1=k1, k2=k2,taudrag=taudragnow, taurad=tauradnow, diffflag=p.diffflag,g=p.g)
 #check if k1, k2 are overwritten when params are called in main_function
 
 
