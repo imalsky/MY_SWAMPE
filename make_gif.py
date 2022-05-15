@@ -5,55 +5,89 @@ Created on Sat Sep 25 15:44:34 2021
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 
-import continuation as cont
-import testing_plots
-import params as p
+
 import initial_conditions as ic
-import fft_legendre_trans as rfl
-import tstepping_new as tstep
-
+import testing_plots
 import pickle
 
-M=p.M  
+M=42
 #get other dimensional parameters using the spectral dimension
 N,I,J,dt,K4,lambdas,mus,w=ic.spectral_params(M)
-Pmn, Hmn = rfl.PmnHmn(J, M, N, mus)
+#Pmn, Hmn = rfl.PmnHmn(J, M, N, mus)
         
-tmin=3000
-tmax=5960
+forcingarray=['high','medium','low']
+phibararray=['1','2','3','4']
+tauarray=['0p1','1','10']
+periodarray=['1','5','10']
+
+tmax=2660
+tmin=2600
+
+assert tmax>tmin, "tmax must be greater than tmin"
+
 trange=np.arange(tmin,tmax)
 spacing=10
 tspaced=trange[::spacing]
 
+
+
+def read_pickle(path,filename):
+    infile = open(path+filename,'rb')
+    var = pickle.load(infile)
+    infile.close()
+    return var
+
+
+def write_pickle(filename,data):
+    outfile = open(filename,'wb')
+    pickle.dump(data,outfile)
+    outfile.close()
+
+
+
 num_snapshot=len(tspaced)
-#create empty arrays for the variables
-etadata=np.zeros((num_snapshot,J,I))
-deltadata=np.zeros((num_snapshot,J,I))
-Phidata=np.zeros((num_snapshot,J,I))
-Udata=np.zeros((num_snapshot,J,I))
-Vdata=np.zeros((num_snapshot,J,I))
 
-for k in range(num_snapshot):
 
-    etadata[k,:,:]=cont.read_pickle('eta-'+str(tspaced[k]))
-    deltadata[k,:,:]=cont.read_pickle('delta-'+str(tspaced[k]))   
-    Phidata[k,:,:]=cont.read_pickle('Phi-'+str(tspaced[k]))
-    Udata[k,:,:]=cont.read_pickle('U-'+str(tspaced[k]))
-    Vdata[k,:,:]=cont.read_pickle('V-'+str(tspaced[k]))
+
+paths=np.zeros(108)
+for i in range(3):
+    for j in range(4):
+        for k in range(3):
+            for l in range(3):
+                path=forcingarray[i]+'_forcing/phibar'+phibararray[j]+'/tau'+tauarray[k]+'period'+periodarray[l]+'/data/'
+
+
+                #create empty arrays for the variables
+                Phidata=np.zeros((num_snapshot,J,I))
+                Udata=np.zeros((num_snapshot,J,I))
+                Vdata=np.zeros((num_snapshot,J,I))     
+                
+                for m in range(num_snapshot): 
+                    Phidata[m,:,:]=read_pickle(path,'Phi-'+str(tspaced[m]))
+                    Udata[m,:,:]=read_pickle(path,'U-'+str(tspaced[m]))
+                    Vdata[m,:,:]=read_pickle(path,'V-'+str(tspaced[m]))
     
+                # Phi0=np.average(Phidata,axis=0)    
+                # U=np.average(Udata,axis=0)  
+                # V=np.average(Vdata,axis=0)  
+                
+                # filename='averages/'+forcingarray[i]+'-Phibar'+phibararray[j]+'-P'+periodarray[l]+'-tau'+tauarray[k]
+
+                # write_pickle(filename+'-Phi',Phi0)
+                # write_pickle(filename+'-U',U)
+                # write_pickle(filename+'-V',V)
     
-    
-sparseness=4
-frms=5
-string='taurad10period10-high-Phi3.gif'
-test=10
-a1=0
-minlevel=p.minlevel
-maxlevel=p.maxlevel    
-dt=36000
-testing_plots.write_quiver_gif(lambdas,mus,Phidata,Udata,Vdata,len(tspaced),frms,string,sparseness,dt,test,a1,minlevel,maxlevel)
+                filename='gifs/'+forcingarray[i]+'-Phibar'+phibararray[j]+'-P'+periodarray[l]+'-tau'+tauarray[k]+'.gif'    
+                sparseness=4
+                frms=5
+                #string='taurad10period10-v3.gif'
+                test=10
+                a1=0
+                minlevel=np.min(Phidata)
+                maxlevel=np.max(Phidata)   
+                dt=36000
+                testing_plots.write_quiver_gif(lambdas,mus,Phidata,Udata,Vdata,len(tspaced),frms,filename,sparseness,dt,test,a1,minlevel,maxlevel)
 # tindex=1990
 # #etaic0 = cont.load_input('etadata')
 # eta0=cont.read_pickle('eta-'+str(tindex))
