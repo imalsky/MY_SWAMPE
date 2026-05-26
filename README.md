@@ -17,7 +17,7 @@ Working on this codebase as an AI assistant or human contributor? Read
 covering the locked parity contract, differentiability rules, validation
 commands, and common pitfalls.
 
-Document version: 2026-05-06
+Document version: 2026-05-26
 
 ---
 
@@ -114,7 +114,7 @@ Reference (NumPy/SciPy) SWAMPE code is not shipped inside this archive. When thi
 
 ## 3. Requirements and Installation
 
-Requirements (as packaged by `setup.py`):
+Requirements (from `pyproject.toml`):
 
 - Python 3.9+
 - `numpy>=1.26,<2.0`

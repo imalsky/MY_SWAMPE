@@ -9,6 +9,9 @@ description = "MY_SWAMP: JAX port + reference implementation of SWAMPE"
 readme = "readme.md"
 requires-python = ">=3.9"
 license = "BSD-3-Clause"
+authors = [
+    { name = "Isaac Malsky", email = "isaacmalsky@gmail.com" },
+]
 dependencies = [
     "numpy>=1.26,<2.0",
     "scipy>=1.10",
@@ -28,6 +31,11 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+[project.urls]
+Homepage = "https://github.com/imalsky/MY_SWAMP"
+Repository = "https://github.com/imalsky/MY_SWAMP"
+"Bug Tracker" = "https://github.com/imalsky/MY_SWAMP/issues"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7",
@@ -43,6 +51,9 @@ my-swamp = "my_swamp.main_function:cli_main"
 [tool.setuptools]
 package-dir = { "" = "src" }
 include-package-data = false
+
+[tool.setuptools.package-data]
+my_swamp = ["py.typed"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
