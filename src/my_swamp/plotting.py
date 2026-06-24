@@ -286,8 +286,10 @@ def spinup_plot(
     elif units=='seconds':
         tlim=dt*tmax
     else:
-        print('Cannot parse units. Acceptable units are: hours, minutes, seconds.')
-    
+        raise ValueError(
+            "Cannot parse units. Acceptable units are: 'hours', 'minutes', 'seconds'."
+        )
+
     t = np.linspace(0, tlim, num=tmax, endpoint=True)
     plt.figure()
     if color is not None:
@@ -348,8 +350,13 @@ def gif_helper(fig: matplotlib.figure.Figure, dpi: int = 200) -> np.ndarray:
     """
     fig.set_dpi(dpi)
     fig.canvas.draw()       # draw the canvas, cache the renderer
-    image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-    image  = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    # Matplotlib >= 3.10 removed Canvas.tostring_rgb(); read the RGBA buffer and
+    # drop the alpha channel to recover the historical (H, W, 3) RGB image.
+    rgba = np.asarray(fig.canvas.buffer_rgba())
+    image = rgba[..., :3].copy()
+    # Frames are transient: close the figure so a long gif does not leak one
+    # open figure per frame.
+    plt.close(fig)
 
     return image
 

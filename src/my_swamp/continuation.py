@@ -70,7 +70,8 @@ def compute_timestamp(units: str, t: int, dt: float) -> str:
     Parameters
     ----------
     units : str
-        Units of timestamps on the savefile: 'hours', 'minutes', or 'seconds'
+        Units of timestamps on the savefile: one of 'hours', 'minutes',
+        'seconds', 'steps', or 'days'.
     t : int
         number of current timestep
     dt : float
@@ -103,7 +104,8 @@ def compute_t_from_timestamp(units: str, timestamp: int, dt: float) -> int:
     Parameters
     ----------
     units : str
-        Units of timestamps on the savefile: 'hours', 'minutes', or 'seconds'
+        Units of timestamps on the savefile: one of 'hours', 'minutes',
+        'seconds', 'steps', or 'days'.
     timestamp : int
         Timestamp in specified units
     dt : float

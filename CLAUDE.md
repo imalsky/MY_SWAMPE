@@ -65,11 +65,12 @@ MY_SWAMP/
 │   ├── conftest.py              # x64 + backend setup
 │   ├── fixtures/*.npz           # SWAMPE-generated reference snapshots
 │   └── test_*.py
-└── testing/                     # not pytest-collected
-    ├── benchmark_scan.py
-    ├── compare_long_run_parity.py
-    ├── generate_reference_parity_fixtures.py
-    └── long_run_parity_outputs/ # generated artifacts
+├── testing/                     # not pytest-collected
+│   ├── benchmark_scan.py
+│   ├── compare_long_run_parity.py
+│   ├── generate_reference_parity_fixtures.py
+│   └── long_run_parity_outputs/ # generated artifacts
+└── paper/                       # JOSS paper draft (paper.md, paper.bib, figure)
 ```
 
 The driver `model.py` is the only large file (~1900 lines). If you only have

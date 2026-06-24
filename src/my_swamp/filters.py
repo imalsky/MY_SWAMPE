@@ -28,11 +28,11 @@ def diffusion(Ximn: jnp.ndarray, sigma: jnp.ndarray) -> jnp.ndarray:
 
 
 def sigma(M: int, N: int, K4: float, a: float, dt: float) -> jnp.ndarray:
-    """Computes the coefficient for the fourth degree diffusion filter 
+    """Computes the coefficient for the fourth degree diffusion filter
     described in Gelb and Gleeson (eq. 12) for vorticity and divergence.
-    
-    CORRECTED: Uses original implicit filter formulation.
-    
+
+    Uses the original implicit filter formulation.
+
     Parameters
     ----------
     M : int

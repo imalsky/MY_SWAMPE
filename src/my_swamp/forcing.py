@@ -71,7 +71,9 @@ def Qfun(
     """Evaluates the radiative forcing on the geopotential.
 
     Q = (Phieq - (Phi + Phibar)) / taurad, following Perez-Becker and
-    Showman (2013).
+    Showman (2013). Note that Q differs from Perez-Becker and Showman by a
+    factor of g: here the prognostic field is the geopotential ``Phi = g * H``,
+    whereas they evaluate the geopotential height ``H``.
 
     Parameters
     ----------

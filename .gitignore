@@ -91,6 +91,20 @@ datasets/
 
 # Notebook run-output folders: keep config files, ignore generated artifacts.
 notebooks/*_outputs/**
+
+# --- JOSS paper (paper/) ---
+# Ignore LaTeX build intermediates (paper.pdf is covered by *.pdf above).
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.out
+paper/*.synctex.gz
+paper/*.toc
+# ...but keep the paper's image assets (override the blanket *.png / image ignores).
+!paper/parity_comparison.png
+!paper/joss-logo.png
 !notebooks/*_outputs/
 !notebooks/*_outputs/config.json
 !notebooks/*_outputs/config.yaml

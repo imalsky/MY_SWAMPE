@@ -1223,9 +1223,23 @@ def run_model_scan(
     Returns
     -------
     Dict[str, Any]
-        Simulation payload containing the static setup, timestep sequence, and
-        either the full output history or the terminal state depending on
-        ``return_history``.
+        Simulation payload whose keys depend on ``return_history``.
+
+        When ``return_history=True`` (the default):
+
+        - ``static``: the :class:`Static` setup (basis, grid, coefficients).
+        - ``t_seq``: integer time indices at which diagnostics were recorded.
+        - ``outs``: dict of stacked time histories. ``eta``, ``delta``, ``Phi``,
+          ``U``, ``V`` have shape ``(len(t_seq), J, I)``; ``rms``, ``spin_min``,
+          ``phi_min``, ``phi_max``, ``dead`` have shape ``(len(t_seq),)``.
+        - ``last_state``: the terminal scan carry (:class:`State`).
+        - ``starttime``: the effective start index used (for continuation).
+        - ``dead_first_idx``: ``int32`` scan-step index at which the blow-up
+          gate first tripped, or ``-1`` if the run completed cleanly.
+
+        When ``return_history=False`` (see :func:`run_model_scan_final`), only
+        ``static``, ``t_seq``, ``last_state``, and ``starttime`` are present
+        (no ``outs`` and no ``dead_first_idx``).
     """
 
     if tmax < 2:
@@ -1590,43 +1604,17 @@ def run_model_scan_final(
     
     Parameters
     ----------
-    M : int
-    dt : Scalar
-    tmax : int
-    Phibar : Scalar
-    omega : Scalar
-    a : Scalar
-    test : Optional[int]
-    g : Scalar
-    forcflag : bool
-    taurad : Scalar
-    taudrag : Scalar
-    DPhieq : Scalar
-    a1 : Scalar
-    diffflag : bool
-    modalflag : bool
-    alpha : Scalar
-    expflag : bool
-    K6 : Scalar
-    K6Phi : Optional[Scalar]
-    contflag : bool
-    custompath : Optional[str]
-    contTime : Optional[str]
-    timeunits : str
-    starttime : Optional[int]
-    eta0_init : Optional[jnp.ndarray]
-    delta0_init : Optional[jnp.ndarray]
-    Phi0_init : Optional[jnp.ndarray]
-    U0_init : Optional[jnp.ndarray]
-    V0_init : Optional[jnp.ndarray]
-    diagnostics : bool
-    remat_step : bool
-    jit_scan : bool
-    donate_state : bool
-    
+    See :func:`run_model_scan` for the full parameter semantics. This function
+    accepts the same keyword arguments and forwards them with
+    ``return_history=False``; the defaults differ only in being tuned for
+    autodiff/inference (``diagnostics=False``, ``jit_scan=True``).
+
     Returns
     -------
     Dict[str, Any]
+        Terminal-state payload with keys ``static``, ``t_seq``, ``last_state``,
+        and ``starttime`` (no ``outs`` history, no ``dead_first_idx``). See the
+        ``return_history=False`` branch of :func:`run_model_scan`.
     """
 
     return run_model_scan(
@@ -1868,7 +1856,9 @@ def run_model(
     if saveflag:
         for k, t in enumerate(t_seq):
             if int(t) % int(savefreq) == 0:
-                # FIXED: compute_timestamp signature is (units, t, dt)
+                # compute_timestamp takes (units, t, dt). SWAMPE's call site passed
+                # (units, dt, t); the multiplicative body made that produce the right
+                # filename anyway. We fixed the call here -- see CLAUDE.md section 9.
                 timestamp = continuation.compute_timestamp(timeunits, int(t), dt)
                 continuation.save_data(
                     timestamp,
@@ -1886,6 +1876,7 @@ def run_model(
         # Lazy import: plotting pulls in matplotlib/imageio, which is expensive
         # and unnecessary for headless / HPC runs.
         from . import plotting
+        import matplotlib.pyplot as plt
         for k, t in enumerate(t_seq):
             if int(t) % int(plotfreq) == 0:
                 timestamp = continuation.compute_timestamp(timeunits, int(t), dt)
@@ -1902,6 +1893,9 @@ def run_model(
                     maxlevel=maxlevel,
                 )
                 plotting.spinup_plot(spinupdata, float(dt), units=timeunits)
+                # Close the per-timestep figures so a long plotflag run does not
+                # accumulate open Matplotlib figures (memory growth + warning).
+                plt.close("all")
 
     if verbose:
         print("GCM run completed!")

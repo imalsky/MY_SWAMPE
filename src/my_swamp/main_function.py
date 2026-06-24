@@ -285,7 +285,6 @@ def _parse_args() -> argparse.Namespace:
 
     # JAX-only extensions (kept optional)
     p.add_argument("--K6Phi", type=float, default=None)
-    p.add_argument("--use-scipy-basis", action="store_true")
 
     return p.parse_args()
 

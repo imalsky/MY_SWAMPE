@@ -17,7 +17,18 @@ Working on this codebase as an AI assistant or human contributor? Read
 covering the locked parity contract, differentiability rules, validation
 commands, and common pitfalls.
 
-Document version: 2026-05-26
+Document version: 2026-06-24
+
+## Citation
+
+If you use `my_swamp` in your research, please cite the accompanying software
+paper (in preparation for the Journal of Open Source Software; the draft lives in
+[`paper/paper.md`](paper/paper.md)) together with the original SWAMPE model on
+which this port is based:
+
+> Landgren, E., & Nadeau, A. (2022). SWAMPE: A Shallow-Water Atmospheric Model in
+> Python for Exoplanets. *Journal of Open Source Software*, 7(80), 4872.
+> <https://doi.org/10.21105/joss.04872>
 
 ---
 
@@ -104,8 +115,9 @@ MY_SWAMP/
 │       └── autodiff_utils.py        # Forward-mode utilities (JVP chunking)
 ├── unit_tests/                      # Pytest suite (see §13 for the test matrix)
 │   └── fixtures/                    # SWAMPE-generated reference snapshots (.npz)
-└── testing/                         # Benchmarks, fixture generation, parity tooling
-    └── long_run_parity_outputs/     # Generated artifacts (only summary.json is committed)
+├── testing/                         # Benchmarks, fixture generation, parity tooling
+│   └── long_run_parity_outputs/     # Generated artifacts (only summary.json is committed)
+└── paper/                           # JOSS paper draft (paper.md, paper.bib, figure)
 ```
 
 Reference (NumPy/SciPy) SWAMPE code is not shipped inside this archive. When this README refers to “parity with NumPy SWAMPE”, it means parity with the upstream SWAMPE reference implementation, not a directory contained here.

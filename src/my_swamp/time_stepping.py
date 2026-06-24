@@ -1,6 +1,8 @@
 # ruff: noqa: E741
 from __future__ import annotations
 
+from typing import Optional
+
 import jax.numpy as jnp
 from .branching import cond
 from .dtypes import Scalar, float_dtype
@@ -52,7 +54,7 @@ def tstepping(
     expflag: bool,
     sigma: jnp.ndarray,
     sigmaPhi: jnp.ndarray,
-    test: int,
+    test: Optional[int],
     t: jnp.ndarray,
 ):
     """Top-level time stepping wrapper.
@@ -143,7 +145,6 @@ def tstepping(
             Um,
             Vm,
             Pmn,
-            Hmn,
             Pmnw,
             Hmnw,
             tstepcoeff,
@@ -185,7 +186,6 @@ def tstepping(
             Um,
             Vm,
             Pmn,
-            Hmn,
             Pmnw,
             Hmnw,
             tstepcoeff,
@@ -227,7 +227,6 @@ def tstepping(
             Um,
             Vm,
             Pmn,
-            Hmn,
             Pmnw,
             Hmnw,
             tstepcoeff,
@@ -275,7 +274,6 @@ def tstepping(
             Um,
             Vm,
             Pmn,
-            Hmn,
             Pmnw,
             Hmnw,
             tstepcoeff,
@@ -317,7 +315,6 @@ def tstepping(
             Um,
             Vm,
             Pmn,
-            Hmn,
             Pmnw,
             Hmnw,
             tstepcoeff,
@@ -359,7 +356,6 @@ def tstepping(
             Um,
             Vm,
             Pmn,
-            Hmn,
             Pmnw,
             Hmnw,
             tstepcoeff,
@@ -390,7 +386,7 @@ def tstepping(
 def tstepcoeffmn(M: int, N: int, a: Scalar) -> jnp.ndarray:
     """Spectral coefficient array ``a / [n(n+1)]`` for wind inversion.
 
-    Shape ``(M+1, N+1)``.  The n=0 row is zeroed out.
+    Shape ``(M+1, N+1)``.  Entries with n=0 (the first column) are zeroed out.
     """
     n = jnp.arange(N + 1, dtype=float_dtype())
     coeff = n * (n + 1)

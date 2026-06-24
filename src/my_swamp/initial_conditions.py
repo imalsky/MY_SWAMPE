@@ -103,7 +103,7 @@ def state_var_init(
     J : int
         Number of Gaussian latitudes.
     mus : jnp.ndarray
-        Gaussian latitudes with shape ``(J,)``.
+        Sine of Gaussian latitudes with shape ``(J,)``.
     lambdas : jnp.ndarray
         Longitudes with shape ``(I,)``.
     test : Optional[int]
@@ -199,7 +199,7 @@ def velocity_init(
     sina : float
         Sine of the tilt angle.
     mus : jnp.ndarray
-        Gaussian latitudes with shape ``(J,)``.
+        Sine of Gaussian latitudes with shape ``(J,)``.
     lambdas : jnp.ndarray
         Longitudes with shape ``(I,)``.
     test : Optional[int]
