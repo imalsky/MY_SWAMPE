@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Differentiability demo: phase-curve observables versus the forcing timescales.
+"""Differentiability demo: day--night temperature contrast versus the forcing timescales.
 
 This is a worked example of the capability that distinguishes ``my_swamp`` from
 the reference NumPy ``SWAMPE``: because the entire shallow-water integration is
@@ -7,19 +7,13 @@ differentiable, we obtain not only how an observable physical quantity depends o
 the model inputs, but also its exact sensitivity (gradient) to those inputs at a
 cost comparable to a single forward run.
 
-Two intuitive observables of a hot Jupiter's thermal phase curve are swept
-against the timescales that control heat redistribution (Perez-Becker & Showman
-2013):
-
-* the day--night geopotential contrast (the shallow-water proxy for the
-  day--night temperature contrast, which sets the phase-curve amplitude) versus
-  the radiative timescale ``taurad``; and
-* the hot-spot offset (the longitude of the wave-1 maximum of the geopotential,
-  i.e. the eastward shift of the hottest point) versus the drag timescale
-  ``taudrag``.
-
-For each, the slope ``d(observable)/d(tau)`` from a single reverse-mode gradient
-(``jax.grad``) is overlaid as a tangent; the tangents lie along the curves,
+The observable is the day--night geopotential contrast, the shallow-water proxy
+for the day--night temperature contrast that sets a hot Jupiter's thermal
+phase-curve amplitude. We sweep it against the radiative timescale ``taurad`` and
+the drag timescale ``taudrag`` (the canonical controls of heat redistribution;
+Perez-Becker & Showman 2013), holding the other fixed. The slope
+``d(contrast)/d(tau)`` from a single reverse-mode gradient (``jax.grad``) is
+overlaid as a tangent at selected points; the tangents lie along the curves,
 showing that automatic differentiation returns the exact local sensitivity.
 
     python testing/differentiability_demo.py --days 12 --npts 10
@@ -62,7 +56,6 @@ DPHIEQ = 1.0e6
 TAURAD_FIX = 10.0 * 3600.0  # held fixed while sweeping taudrag
 TAUDRAG_FIX = 6.0 * 3600.0  # held fixed while sweeping taurad
 DAY = 86400.0
-RAD2DEG = 180.0 / np.pi
 
 
 def _base_kwargs(tmax: int) -> dict:
@@ -100,8 +93,8 @@ def main() -> None:
     base = _base_kwargs(tmax)
     print(f"config: M={M} dt={DT} days={args.days} tmax={tmax} npts={args.npts}")
 
-    # Latitude quadrature weights and longitudes for the spatial reductions.
-    _, I, J, _, lambdas, mus, w = spectral_params(M)
+    # Latitude quadrature weights and longitudes for the day/night average.
+    _, _, _, _, lambdas, mus, w = spectral_params(M)
     lambdas_np = np.asarray(lambdas)
     w_lat = jnp.asarray(np.asarray(w)[:, None])  # (J, 1)
     lam = jnp.asarray(lambdas_np)[None, :]  # (1, I)
@@ -114,12 +107,6 @@ def main() -> None:
         night = jnp.sum(phi * w_lat * night_mask) / jnp.sum(w_lat * night_mask)
         return day - night
 
-    def offset_deg(phi: jnp.ndarray) -> jnp.ndarray:
-        """Hot-spot offset: longitude (deg) of the wave-1 maximum of Phi."""
-        sx = jnp.sum(phi * jnp.cos(lam) * w_lat)
-        sy = jnp.sum(phi * jnp.sin(lam) * w_lat)
-        return jnp.arctan2(sy, sx) * RAD2DEG
-
     # Equilibrium contrast (normalization): contrast of the radiative-equilibrium
     # perturbation DPhieq*cos(lam)*sqrt(1-mu^2) on the dayside.
     mu = jnp.asarray(np.asarray(mus)[:, None])
@@ -131,10 +118,6 @@ def main() -> None:
         out = run_model_scan_final(taurad=taurad, taudrag=TAUDRAG_FIX, **base)
         return contrast(out["last_state"].Phi_curr) / c_eq
 
-    def offset_of_taudrag(taudrag: jnp.ndarray) -> jnp.ndarray:
-        out = run_model_scan_final(taurad=TAURAD_FIX, taudrag=taudrag, **base)
-        return offset_deg(out["last_state"].Phi_curr)
-
     def contrast_of_taudrag(taudrag: jnp.ndarray) -> jnp.ndarray:
         out = run_model_scan_final(taurad=TAURAD_FIX, taudrag=taudrag, **base)
         return contrast(out["last_state"].Phi_curr) / c_eq
@@ -143,25 +126,22 @@ def main() -> None:
     _ = contrast_of_taurad(jnp.asarray(TAURAD_FIX))
 
     val_rad = jax.jit(contrast_of_taurad)
-    val_off = jax.jit(offset_of_taudrag)
-    val_cdrag = jax.jit(contrast_of_taudrag)
+    val_drag = jax.jit(contrast_of_taudrag)
     grad_rad = jax.jit(jax.grad(contrast_of_taurad))
-    grad_off = jax.jit(jax.grad(offset_of_taudrag))
+    grad_drag = jax.jit(jax.grad(contrast_of_taudrag))
 
     taus = np.logspace(np.log10(args.tau_min_days), np.log10(args.tau_max_days), args.npts) * DAY
     taus_d = taus / DAY
 
     c_rad = np.array([float(val_rad(jnp.asarray(t))) for t in taus])
-    o_drag = np.array([float(val_off(jnp.asarray(t))) for t in taus])
-    c_drag = np.array([float(val_cdrag(jnp.asarray(t))) for t in taus])
+    c_drag = np.array([float(val_drag(jnp.asarray(t))) for t in taus])
     print("taurad sweep  contrast/C_eq:", np.round(c_rad, 3))
-    print("taudrag sweep hot-spot deg :", np.round(o_drag, 2))
     print("taudrag sweep contrast/C_eq:", np.round(c_drag, 3))
 
     # Automatic-differentiation tangents at three points per curve.
     tan_idx = [args.npts // 5, args.npts // 2, (4 * args.npts) // 5]
     g_rad = {i: float(grad_rad(jnp.asarray(taus[i]))) for i in tan_idx}
-    g_off = {i: float(grad_off(jnp.asarray(taus[i]))) for i in tan_idx}
+    g_drag = {i: float(grad_drag(jnp.asarray(taus[i]))) for i in tan_idx}
 
     # --- figure (science.mplstyle, enlarged fonts) ---
     style_path = Path(__file__).resolve().parent / "science.mplstyle"
@@ -182,23 +162,23 @@ def main() -> None:
     fig, axes = plt.subplots(1, 2, figsize=(13.0, 5.2), constrained_layout=True)
     panels = [
         (axes[0], c_rad, g_rad, r"Radiative timescale $\tau_{\rm rad}$ [days]",
-         r"Day--night contrast / equilibrium", "Day--night temperature contrast", "C0"),
-        (axes[1], o_drag, g_off, r"Drag timescale $\tau_{\rm drag}$ [days]",
-         r"Hot-spot offset [deg]", "Hot-spot offset", "C1"),
+         "Primary control: radiative relaxation", "C0"),
+        (axes[1], c_drag, g_drag, r"Drag timescale $\tau_{\rm drag}$ [days]",
+         "Secondary control: drag", "C1"),
     ]
-    for ax, yvals, gvals, xlabel, ylabel, title, color in panels:
-        ax.plot(taus_d, yvals, color=color, marker="o", markersize=6, zorder=2)
+    for ax, cvals, gvals, xlabel, title, color in panels:
+        ax.plot(taus_d, cvals, color=color, marker="o", markersize=6, zorder=2)
         for j, i in enumerate(tan_idx):
-            t0, y0, s = taus[i], yvals[i], gvals[i]  # s = d(obs)/d(tau) [obs-units / s]
+            t0, c0, s = taus[i], cvals[i], gvals[i]  # s = d(contrast)/d(tau) [1/s]
             tt = np.linspace(t0 * 0.6, t0 * 1.55, 20)
             ax.plot(
-                tt / DAY, y0 + s * (tt - t0),
+                tt / DAY, c0 + s * (tt - t0),
                 color="k", lw=2.2, zorder=3,
                 label="AD gradient (tangent)" if j == 0 else None,
             )
         ax.set_xscale("log")
         ax.set_xlabel(xlabel)
-        ax.set_ylabel(ylabel)
+        ax.set_ylabel(r"Day--night contrast / equilibrium")
         ax.set_title(title)
         ax.legend(loc="best", frameon=True)
 
