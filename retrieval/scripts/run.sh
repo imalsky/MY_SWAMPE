@@ -49,12 +49,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # retrieval/scripts
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"                 # MY_SWAMP
 cd "$SCRIPT_DIR"   # run_smc.py writes to retrieval/data/ and figures to retrieval/plots/
 
-# ── Conda ──────────────────────────────────────────────
-CONDA_ENV="${CONDA_ENV:-MY_SWAMP}"
+# ── Conda env (auto-created if missing) ────────────────
+# Create the env from conda-forge with --override-channels. This AVOIDS the
+# anaconda.com 'defaults' channel, which now returns HTTP 429 "TERMS OF SERVICE
+# RATE LIMIT EXCEEDED" on many institutional clusters (incl. JPL). pip deps
+# (jax[cuda12], jaxoplanet, blackjax) come from PyPI and are unaffected.
+# Tip: pre-create the env once on the head node with the same command to keep
+# this out of the job's wall-clock:
+#   conda create -y -n swamp -c conda-forge --override-channels python=3.12 numpy scipy matplotlib
+CONDA_ENV="${CONDA_ENV:-swamp}"
+PYVER="${PYVER:-3.12}"
 if command -v conda >/dev/null 2>&1; then
   CONDA_BASE="$(conda info --base)"
   # shellcheck disable=SC1091
   source "$CONDA_BASE/etc/profile.d/conda.sh"
+  if ! conda env list | awk '{print $1}' | grep -qx "$CONDA_ENV"; then
+    echo "Creating conda env '$CONDA_ENV' (python=$PYVER + numpy/scipy/matplotlib) from conda-forge..."
+    conda create -y -n "$CONDA_ENV" -c conda-forge --override-channels "python=$PYVER" numpy scipy matplotlib
+  fi
   conda activate "$CONDA_ENV"
   echo "conda env: $CONDA_ENV  ($(which python))"
 fi
