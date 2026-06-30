@@ -1,6 +1,7 @@
 # Contributing to MY_SWAMP
 
-Thank you for considering a contribution.
+Thank you for considering a contribution. By participating in this project you
+agree to abide by the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Reporting bugs / requesting features
 

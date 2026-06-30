@@ -1,69 +1,74 @@
 # SWAMPE vs SWAMPE-JAX — speed benchmark
 
 Combined record of the CPU and GPU timing for the paper's "Speed (CPU and GPU)" section.
-All three rows use the **identical** forced hot-Jupiter configuration and float64 precision;
-the only thing that differs is the implementation/device.
+**Everything below is a single, consistent 10-day window** -- CPU and GPU, single-trajectory
+and batched. This is a deliberate change from an earlier draft that mixed a 10-day CPU claim
+with the (unrelated) 100-day window used by the parity figure; see
+`paper/benchmark_data/README.md` for why that was wrong and why 10 days was chosen for this
+section specifically. The Numerical-parity and Differentiability figures use a *separate*
+100-day window on purpose (long-horizon stability) -- do not conflate the two.
 
-## Configuration (identical for all rows)
+Raw data backing every number here is committed at `paper/benchmark_data/` (not gitignored),
+so these claims are independently checkable, not just asserted.
 
-`M=42`, `dt=120 s`, `Phibar=3e5`, `omega=3.2e-5`, `a=8.2e7`, `DPhieq=1e6`,
-`taurad=10 h (36000 s)`, `taudrag=6 h (21600 s)`, `K6=1.24e33`, forced mode,
-modified-Euler scheme, hyperdiffusion + modal filter on. Steps counted as `tmax-2`.
+## Configuration (identical for every row below)
 
-## Common metric: time **per step** (run-length independent)
+`M=42`, `dt=120 s`, `Phibar=3e5`, `omega=3.2e-5`, `a=8.2e7`, `DPhieq=1e6` (single-trajectory
+rows) or swept `5e5`-`2e6` (batched rows, see below), `taurad=10 h (36000 s)`,
+`taudrag=6 h (21600 s)`, `K6=1.24e33`, forced mode, modified-Euler scheme, hyperdiffusion +
+modal filter on. 10-day run = 7,199 steps.
 
-| Implementation        | Device                 | per-step (ms) | speedup vs SWAMPE | 10-day total | 100-day total |
-|-----------------------|------------------------|--------------:|------------------:|-------------:|--------------:|
-| SWAMPE (NumPy)        | CPU (1 core)           |       121.0   |            1.0×   |      871 s   |   ~2.42 h (extrap.) |
-| SWAMPE-JAX (my_swamp) | CPU (1 core)           |         3.99  |           30.3×   |     28.7 s   |   ~4.8 min (extrap.) |
-| SWAMPE-JAX (my_swamp) | GPU (NVIDIA A100-40GB) |        0.2335 |          518×     |   1.68 s (derived) | 16.81 s |
+## CPU and single-trajectory GPU
 
-- **my_swamp GPU vs my_swamp CPU** (same code, cross-device): **17.1×**.
-- 10-day totals: a 10-day run is 7,199 steps (`tmax=7201`). 100-day is 71,999 steps.
-- "derived"/"extrap." values are `per-step × steps` (the per-step rate is what is measured;
-  the loop is fixed-cost so this is exact).
+| Implementation        | Device                 | 10-day total | speedup vs SWAMPE |
+|------------------------|------------------------|-------------:|-------------------:|
+| SWAMPE (NumPy)         | CPU (1 core)           | `[PENDING]`  | 1.0x |
+| SWAMPE-JAX (my_swamp)  | CPU (1 core)           | `[PENDING]`  | `[PENDING]` |
+| SWAMPE-JAX (my_swamp)  | GPU (NVIDIA A100-40GB) | 1.1535 s     | `[PENDING]` |
 
-## Provenance
+- CPU timings: Apple M3 Pro, single core. GPU timing: Colab `NVIDIA A100-SXM4-40GB`, float64.
+- **my_swamp GPU vs my_swamp CPU** (same code, cross-device): `[PENDING]`.
+- Provenance: `paper/benchmark_data/cpu_speed_10day_summary.json` (CPU rows) and
+  `paper/benchmark_data/gpu_vmap_sweep_10day.json` row `N=1` (GPU row).
 
-- **CPU** (both rows): `figures/long_run_parity_outputs/forced_default_100d/summary.json` —
-  a 10-day forced run on a single CPU core. `runtime_seconds = {swampe: 871.211, my_swamp: 28.734}`.
-  Same file's parity: `Phi` max-abs `6.3e-8` (rel `3.7e-10`); `eta`/`delta` ~`1e-12`.
-- **GPU**: Colab `NVIDIA A100-SXM4-40GB`, 100-day run, float64, **averaged over 5 timed runs**:
-  avg total `16.814 s` (std `0.035 s`), avg per-step `0.2335 ms`. JIT compile excluded
-  (warmup run first); `block_until_ready()` before stopping the clock; terminal state only
-  (no history, no disk I/O); result finite. Per-run totals: 16.871, 16.763, 16.806, 16.826, 16.805 s.
+## Batched throughput (`jax.vmap`, GPU)
+
+`jax.vmap` runs many trajectories (here a `DPhieq` sweep over `5e5`-`2e6`) in one compiled
+call. The efficient batch size is set by **throughput**, not memory: at `M=42` each step is
+tiny, so the A100 stays underutilized until enough trajectories are stacked to saturate it;
+past that, batch time scales with `N` and throughput plateaus. Sweep on the A100 (**10-day**
+= 7,199-step runs, float64), doubling `N` until throughput plateaus:
+
+| N  | batch time (s) | throughput (traj/s) | ms/traj  |
+|---:|---------------:|--------------------:|---------:|
+| 1  | 1.1535 | 0.9 | 1153.51 |
+| 2  | 1.2771 | 1.6 |  638.54 |
+| 4  | 1.4612 | 2.7 |  365.29 |
+| 8  | 1.7584 | 4.5 |  219.80 |
+| 16 | 2.3802 | 6.7 |  148.76 |
+| 32 | 4.1345 | 7.7 |  129.20 |
+| 64 | 7.8874 | 8.1 |  123.24 |
+
+- **Efficient knee: N = 32** (7.7 traj/s, within 10% of peak); **peak: N = 64** (8.1 traj/s).
+  Beyond that, doubling `N` just scales batch time linearly -- no efficiency gain.
+- At N=32, batching is **~8.9x more efficient per trajectory** than running trajectories one
+  at a time, at only **163 MB** peak GPU memory (compute-bound, not memory-bound).
+- Per-member final `Phi` tracks the swept `DPhieq` (~106k -> ~430k mean), confirming the batch
+  members are genuinely distinct runs; all outputs finite.
+- Batched-vs-SWAMPE speedup (efficient N=32): `[PENDING]` (needs the CPU SWAMPE row above).
+- Provenance: `paper/benchmark_data/gpu_vmap_sweep_10day.json`, generated by
+  `scripts/swampe_gpu_vmap_test.ipynb` (Colab, `NVIDIA A100-SXM4-40GB`, float64, 10-day runs,
+  JIT compile excluded via warmup, `block_until_ready()`). A CLI-equivalent script,
+  `scripts/swampe_gpu_vmap_test.py`, exists for non-Colab GPU machines and produces the same
+  schema, but was not the source of the numbers quoted here -- the notebook was.
 
 ## Fairness notes
 
 - Install excluded; JIT compile excluded (warmup); device sync via `block_until_ready()`.
 - No disk I/O (SWAMPE `saveflag=False`; my_swamp returns terminal state only).
 - CPU and GPU are necessarily different hardware (SWAMPE is CPU-only NumPy); the cleanest
-  same-machine, same-code number is the CPU→GPU `17.1×`. The `518×` is my_swamp-GPU vs the
-  reference SWAMPE-CPU rate.
-
-## Batched throughput (`jax.vmap`, GPU)
-
-`jax.vmap` runs many trajectories (here a `DPhieq` sweep) in one compiled call. The efficient
-batch size is set by **throughput**, not memory: at `M=42` each step is tiny, so the A100 stays
-underutilized until enough trajectories are stacked to saturate it; past that, batch time scales
-with `N` and throughput plateaus. Sweep on the A100 (1-day = 719-step runs, float64), doubling
-`N` until throughput plateaus:
-
-| N  | batch time (s) | throughput (traj/s) | ms/traj | ms/step/traj |
-|---:|---------------:|--------------------:|--------:|-------------:|
-| 1  | 0.125 |  8.0 | 124.85 | 0.1736 |
-| 2  | 0.133 | 15.1 |  66.39 | 0.0923 |
-| 4  | 0.152 | 26.3 |  38.05 | 0.0529 |
-| 8  | 0.175 | 45.6 |  21.93 | 0.0305 |
-| 16 | 0.239 | 67.0 |  14.92 | 0.0208 |
-| 32 | 0.414 | 77.4 |  12.93 | 0.0180 |
-| 64 | 0.789 | 81.1 |  12.33 | 0.0171 |
-
-- **Efficient knee: N = 32** (77.4 traj/s, within 10% of peak); **peak: N = 64** (81.1 traj/s).
-  Beyond that, doubling `N` just scales batch time linearly — no efficiency gain.
-- At N=32, batching is **~9.7× more efficient per trajectory** than running trajectories one at
-  a time, at only **163 MB** peak GPU memory (compute-bound, not memory-bound).
-- Per-member final `Phi` tracks the swept `DPhieq` (94k → 384k mean), confirming the batch
-  members are genuinely distinct runs; all outputs finite.
-- Provenance: Colab `NVIDIA A100-SXM4-40GB`, float64, 1-day runs, JIT compile excluded
-  (warmup), `block_until_ready()`. Notebook: `swampe_gpu_vmap_test.ipynb`.
+  same-machine, same-code comparison is GPU-vs-CPU on `my_swamp` itself (see above).
+- The batched-throughput number is `SWAMPE-JAX`'s single-GPU `vmap` advantage vs.
+  single-core `SWAMPE` -- `SWAMPE` was not benchmarked under multi-core or cluster-level
+  parallelism, so this is not necessarily a ceiling on `SWAMPE`'s own parallel scaling.
+  The paper says this explicitly; this file is the source for that caveat too.

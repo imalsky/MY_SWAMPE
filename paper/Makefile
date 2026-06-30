@@ -13,9 +13,20 @@ figures:
 	python ../tests/compare_long_run_parity.py --days 100
 	cp ../figures/long_run_parity_outputs/forced_default_100d/field_comparison.png parity_comparison.png
 	python ../scripts/make_sensitivity_figure.py --days 100
+	cp ../figures/long_run_parity_outputs/forced_default_100d/summary.json benchmark_data/cpu_parity_100day_summary.json
+
+# Regenerate the CPU half of the "Speed (CPU and GPU)" section's data (slow,
+# ~15 min; dominated by the reference NumPy SWAMPE run). Separate --out-dir
+# from the 100-day figures target above so a 10-day run can never silently
+# overwrite the 100-day parity output. The GPU half is not reproducible from
+# this Makefile -- see paper/benchmark_data/README.md (Colab notebook or
+# scripts/swampe_gpu_vmap_test.py on a local GPU).
+speed:
+	python ../tests/compare_long_run_parity.py --days 10 --out-dir ../figures/long_run_parity_outputs/forced_default_10d
+	cp ../figures/long_run_parity_outputs/forced_default_10d/summary.json benchmark_data/cpu_speed_10day_summary.json
 
 clean:
 	rm -f paper.aux paper.bbl paper.blg paper.log paper.out \
 	      paper.fdb_latexmk paper.fls paper.synctex.gz paper.xdv
 
-.PHONY: clean figures
+.PHONY: clean figures speed

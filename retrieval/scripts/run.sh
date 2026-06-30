@@ -3,13 +3,16 @@
 #SBATCH -o SWAMP_SMC.o%j
 #SBATCH -e SWAMP_SMC.e%j
 #SBATCH -p gpu
-#SBATCH --mem=60G
-#SBATCH -t 48:00:00
+# Sized for the actual ~1-2 h GPU-bound run (+ setup buffer) so the job BACKFILLS
+# into short gaps instead of waiting for a 48 h opening. The GPU is the only hard
+# requirement; raise -t/--mem if you scale the run way up.
+#SBATCH --mem=24G
+#SBATCH -t 06:00:00
 #SBATCH --gpus=1
 #SBATCH --clusters=edge
 #SBATCH -N 1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=4
 #SBATCH --mail-type=all
 #SBATCH --mail-user=isaac.n.malsky@jpl.nasa.gov
 

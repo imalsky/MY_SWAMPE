@@ -878,3 +878,6 @@ python scripts/benchmark_scan.py --require-x64
 | Long-run parity vs NumPy SWAMPE | `tests/compare_long_run_parity.py` |
 | Reference fixture generation | `scripts/generate_reference_parity_fixtures.py` |
 | Performance benchmark | `scripts/benchmark_scan.py` |
+| Paper gradient-cost/vmap-throughput benchmark (CPU) | `scripts/benchmark_gradient.py` |
+| Paper GPU batched-throughput sweep | `scripts/swampe_gpu_vmap_test.ipynb` (Colab; `scripts/swampe_gpu_vmap_test.py` is the CLI equivalent) |
+| Paper benchmark raw data + provenance | `paper/benchmark_data/` |

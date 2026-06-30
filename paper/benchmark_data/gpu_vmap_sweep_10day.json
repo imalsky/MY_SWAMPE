@@ -1,0 +1,48 @@
+{
+  "_provenance": {
+    "source": "scripts/swampe_gpu_vmap_test.ipynb",
+    "run_by": "user (Isaac Malsky), on Google Colab",
+    "date": "2026-06-30",
+    "reported_to_assistant_verbatim": true,
+    "note": "Pasted directly from the notebook's '===== RESULTS =====' block after Run all on a Colab A100 GPU runtime. Not regenerated/recomputed by the assistant -- this file is a structured transcription of that paste, kept byte-faithful to the reported numbers."
+  },
+  "precision": "float64",
+  "gpu": "NVIDIA A100-SXM4-40GB",
+  "regime": {
+    "M": 42,
+    "dt_seconds": 120,
+    "sweep_days": 10,
+    "steps": 7199,
+    "dphieq_lo": 5.0e5,
+    "dphieq_hi": 2.0e6
+  },
+  "sweep_table": [
+    {"N": 1,  "batch_s": 1.1535, "throughput_traj_per_s": 0.9, "ms_per_traj": 1153.508, "throughput_gain_over_prev": null},
+    {"N": 2,  "batch_s": 1.2771, "throughput_traj_per_s": 1.6, "ms_per_traj": 638.538,  "throughput_gain_over_prev": 0.806},
+    {"N": 4,  "batch_s": 1.4612, "throughput_traj_per_s": 2.7, "ms_per_traj": 365.290,  "throughput_gain_over_prev": 0.748},
+    {"N": 8,  "batch_s": 1.7584, "throughput_traj_per_s": 4.5, "ms_per_traj": 219.796,  "throughput_gain_over_prev": 0.662},
+    {"N": 16, "batch_s": 2.3802, "throughput_traj_per_s": 6.7, "ms_per_traj": 148.762,  "throughput_gain_over_prev": 0.477},
+    {"N": 32, "batch_s": 4.1345, "throughput_traj_per_s": 7.7, "ms_per_traj": 129.204,  "throughput_gain_over_prev": 0.151},
+    {"N": 64, "batch_s": 7.8874, "throughput_traj_per_s": 8.1, "ms_per_traj": 123.241,  "throughput_gain_over_prev": 0.048}
+  ],
+  "efficient_batch_N": 32,
+  "peak_throughput_N": 64,
+  "efficient_batch_diagnostics": {
+    "per_run_batch_times_s": [4.1323, 4.1318, 4.1318, 4.1319, 4.1322],
+    "batch_time_mean_s": 4.1320,
+    "batch_time_std_s": 0.0002,
+    "batch_time_min_s": 4.1318,
+    "throughput_traj_per_s": 7.7,
+    "ms_per_trajectory": 129.1245,
+    "ms_per_step_per_traj": 0.01794,
+    "single_traj_ms_per_traj": 1153.5084,
+    "vmap_efficiency_x": 8.93,
+    "gpu_mem_peak_MB": 163,
+    "finite_frac": 1.0,
+    "output_shape": [32, 64, 128],
+    "final_phi_global_min": 9.75848,
+    "final_phi_global_mean": 266830,
+    "final_phi_global_max": 1.70587e6
+  },
+  "results_block_raw": "precision               = float64\ngpu                     = NVIDIA A100-SXM4-40GB\nM                       = 42\ndt_seconds              = 120\nsweep_days              = 10\nsteps                   = 7199\nefficient_batch_N       = 32\npeak_throughput_N       = 64\nthroughput_traj_per_s   = 7.7\npeak_throughput_traj_s  = 8.1\nms_per_trajectory       = 129.1245\nms_per_step_per_traj    = 0.01794\nsingle_traj_ms_per_traj = 1153.5084\nvmap_efficiency_x       = 8.93\ngpu_mem_peak_MB         = 163\nfinite_frac             = 1.000000\nsweep_N_thr = [(1, 0.9), (2, 1.6), (4, 2.7), (8, 4.5), (16, 6.7), (32, 7.7), (64, 8.1)]"
+}

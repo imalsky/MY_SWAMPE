@@ -14,7 +14,7 @@ Default behavior
 
 Example
 -------
-    python tests/compare_long_run_parity.py --days 100
+    python paper/scripts/compare_long_run_parity.py --days 100
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 REF_ROOT = ROOT.parents[0] / "SWAMPE"
 DEFAULT_OUT_DIR = ROOT / "figures" / "long_run_parity_outputs" / "forced_default_100d"
 
@@ -206,7 +206,7 @@ def _save_field_comparison_plot(
         "V": r"Meridional wind ($V$)",
     }
 
-    style_path = ROOT / "scripts" / "science.mplstyle"
+    style_path = ROOT / "paper" / "scripts" / "science.mplstyle"
     if style_path.exists():
         plt.style.use(str(style_path))
     # Match the sensitivity figure: large, print-legible type throughout.
