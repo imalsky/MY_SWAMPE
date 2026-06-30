@@ -115,12 +115,16 @@ MY_SWAMP/
 │       └── autodiff_utils.py        # Forward-mode utilities (JVP chunking)
 ├── unit_tests/                      # Pytest suite (see §13 for the test matrix)
 │   └── fixtures/                    # SWAMPE-generated reference snapshots (.npz)
-├── tests/                           # Integration tests (long-run parity vs SWAMPE; not pytest-collected)
-├── scripts/                         # Reproducibility generators (figures, benchmarks, fixtures)
+├── scripts/                         # General-purpose, NOT paper-specific (not pytest-collected)
+│   ├── benchmark_scan.py                # forward-scan wall-clock microbenchmark
+│   └── generate_reference_parity_fixtures.py
 ├── retrieval/                       # Differentiable SWAMP -> phase-curve retrieval (BlackJAX SMC)
 ├── data/                            # Regenerable .npz data (gitignored)
 ├── figures/                         # Generated figures + parity output bundles (gitignored)
-└── paper/                           # JOSS paper (LaTeX: paper.tex, paper.bib, figures, Makefile)
+└── paper/                           # JOSS paper -- self-contained: text, figures, raw data, generators
+    ├── paper.tex, paper.bib, Makefile, README.md, speed_benchmark.md
+    ├── scripts/                         # ALL paper-specific generators (parity/speed/figures/GPU sweep)
+    └── benchmark_data/                  # committed raw JSON + provenance for every paper number
 ```
 
 Reference (NumPy/SciPy) SWAMPE code is not shipped inside this archive. When this README refers to “parity with NumPy SWAMPE”, it means parity with the upstream SWAMPE reference implementation, not a directory contained here.
@@ -749,12 +753,12 @@ The test suite lives under `unit_tests/` and covers:
 
 ### 13b. SWAMPE vs. MY_SWAMP Long-Run Parity Check (`compare_long_run_parity.py`)
 
-This is the main tool for checking that `my_swamp` stays numerically close to the original NumPy SWAMPE reference over long integrations. It is not part of the pytest suite because a useful horizon (100 days) can take several minutes.
+This is the main tool for checking that `my_swamp` stays numerically close to the original NumPy SWAMPE reference over long integrations. It is not part of the pytest suite because a useful horizon (100 days) can take several minutes. It also doubles as the source of the JOSS paper's parity figure (100-day window) and CPU speed numbers (10-day window) -- see `paper/benchmark_data/README.md`. It lives in `paper/scripts/` (paper-specific tooling is self-contained under `paper/`; see CLAUDE.md SS2).
 
 Run it from the repository root:
 
 ```bash
-JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 python tests/compare_long_run_parity.py --days 100
+JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 python paper/scripts/compare_long_run_parity.py --days 100
 ```
 
 What it does:
@@ -770,13 +774,13 @@ Key options:
 
 ```bash
 # Change integration horizon or timestep
-python tests/compare_long_run_parity.py --days 200 --dt 600
+python paper/scripts/compare_long_run_parity.py --days 200 --dt 600
 
 # Run an idealized test case instead of forced mode (1 or 2)
-python tests/compare_long_run_parity.py --days 50 --test 1
+python paper/scripts/compare_long_run_parity.py --days 50 --test 1
 
 # Write outputs to a custom directory
-python tests/compare_long_run_parity.py --days 100 --out-dir /tmp/parity_check
+python paper/scripts/compare_long_run_parity.py --days 100 --out-dir /tmp/parity_check
 ```
 
 The script requires that the SWAMPE reference package is importable. It looks for it at `../SWAMPE` relative to the `MY_SWAMP` root.
@@ -875,9 +879,10 @@ python scripts/benchmark_scan.py --require-x64
 | Continuation round-trip test | `unit_tests/test_continuation_roundtrip.py` |
 | Validation tests for invalid input | `unit_tests/test_invalid_input.py` |
 | `vmap` ensemble smoke test | `unit_tests/test_vmap_smoke.py` |
-| Long-run parity vs NumPy SWAMPE | `tests/compare_long_run_parity.py` |
+| Long-run parity vs NumPy SWAMPE (also the paper's parity/speed source) | `paper/scripts/compare_long_run_parity.py` |
 | Reference fixture generation | `scripts/generate_reference_parity_fixtures.py` |
-| Performance benchmark | `scripts/benchmark_scan.py` |
-| Paper gradient-cost/vmap-throughput benchmark (CPU) | `scripts/benchmark_gradient.py` |
-| Paper GPU batched-throughput sweep | `scripts/swampe_gpu_vmap_test.ipynb` (Colab; `scripts/swampe_gpu_vmap_test.py` is the CLI equivalent) |
+| Performance benchmark (general, not paper-specific) | `scripts/benchmark_scan.py` |
+| Paper gradient-cost/vmap-throughput benchmark (CPU) | `paper/scripts/benchmark_gradient.py` |
+| Paper GPU batched-throughput sweep | `paper/scripts/swampe_gpu_vmap_test.ipynb` (Colab; `paper/scripts/swampe_gpu_vmap_test.py` is the CLI equivalent) |
+| Paper figure 2 generator (AD sensitivity maps) | `paper/scripts/make_sensitivity_figure.py` |
 | Paper benchmark raw data + provenance | `paper/benchmark_data/` |

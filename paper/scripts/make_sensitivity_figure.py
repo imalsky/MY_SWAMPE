@@ -39,8 +39,8 @@ the radiative and the drag panels.
 
 Usage
 -----
-    python scripts/make_sensitivity_figure.py                # 100 days (paper)
-    python scripts/make_sensitivity_figure.py --days 5       # fast smoke test
+    python paper/scripts/make_sensitivity_figure.py                # 100 days (paper)
+    python paper/scripts/make_sensitivity_figure.py --days 5       # fast smoke test
 """
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ import jax.numpy as jnp
 import numpy as np
 import matplotlib
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 matplotlib.use("Agg")

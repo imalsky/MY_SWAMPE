@@ -13,7 +13,7 @@ absolute seconds are machine-dependent and reported with the device/version.
 
 Usage
 -----
-    python scripts/benchmark_gradient.py --days 10
+    python paper/scripts/benchmark_gradient.py --days 10
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from my_swamp.model import run_model_scan_final  # noqa: E402

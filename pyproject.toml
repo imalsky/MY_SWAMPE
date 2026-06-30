@@ -70,7 +70,7 @@ markers = [
 
 [tool.ruff]
 target-version = "py310"
-src = ["src", "unit_tests", "tests", "scripts"]
+src = ["src", "unit_tests", "scripts", "paper/scripts"]
 # retrieval/ is restored research/HPC application code with its own domain
 # conventions (e.g. I/J grid indices); it is not gated on the package lint.
 # Notebooks (*.ipynb) follow normal Colab/Jupyter cell idioms (semicolon-joined

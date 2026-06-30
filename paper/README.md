@@ -14,29 +14,41 @@ make clean      # remove LaTeX build artifacts
 
 Requires a LaTeX install with `pdflatex` + `bibtex` (uses `natbib` + `plainnat`).
 
-## Figures (reproducible; not committed)
+## Figures and benchmark scripts (self-contained in this directory)
 
-The figure **scripts** are committed and the figure **PNGs are regenerated**, not
-stored in git (the repository does not track large binaries or data). Only the
-small `joss-logo.png` asset is committed, because it is required for the build and
-is not regenerable.
+Everything needed to regenerate the paper's figures and quantitative claims lives
+under `paper/` -- nothing outside this directory is needed except the installed
+`my_swamp` package and (for the parity/speed scripts) the sibling reference repo
+`../../SWAMPE`.
+
+The figure **scripts** are committed (`paper/scripts/`) and the figure **PNGs are
+also committed**, not gitignored -- Figure 1 needs the external reference SWAMPE
+to regenerate, so the rendered PNGs are checked in even though the data behind
+them is not (see `.gitignore`). `joss-logo.png` is committed too, because it is
+required for the build and is not regenerable.
 
 | Figure | Script | Command |
 |---|---|---|
-| Fig. 1 — SWAMPE vs SWAMPE-JAX parity (`parity_comparison.png`) | `../tests/compare_long_run_parity.py` | `make figures` (or see below) |
-| Fig. 2 — AD sensitivity maps (`temperature_sensitivity_perhour_100d.png`) | `../scripts/make_sensitivity_figure.py` | `python ../scripts/make_sensitivity_figure.py` |
+| Fig. 1 — SWAMPE vs SWAMPE-JAX parity (`parity_comparison.png`) | `scripts/compare_long_run_parity.py` | `make figures` (or see below) |
+| Fig. 2 — AD sensitivity maps (`temperature_sensitivity_perhour_100d.png`) | `scripts/make_sensitivity_figure.py` | `python scripts/make_sensitivity_figure.py` |
 
 Regenerate both before building (slow: Fig. 1 runs the reference NumPy SWAMPE and
 the JAX model; Fig. 2 runs a 100-day differentiated integration):
 
 ```bash
 make figures    # regenerates parity_comparison.png and temperature_sensitivity_perhour_100d.png
+make speed      # regenerates the CPU half of the Speed section's data (10-day window)
 make            # build the PDF
 ```
 
 `make_sensitivity_figure.py` also writes a companion `*.npz` of the underlying
 fields and the AD-vs-finite-difference validation (R^2 per panel); that data file
 is regenerable and is not committed.
+
+The "Speed (CPU and GPU)" section's claims (and the GPU `jax.vmap` batching
+sweep) have their own raw data, provenance, and reproduction instructions in
+`benchmark_data/README.md` -- read that before changing any number in the Speed
+subsection of `paper.tex`.
 
 ## Submission note
 

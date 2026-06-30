@@ -65,14 +65,9 @@ MY_SWAMP/
 │   ├── conftest.py              # x64 + backend setup
 │   ├── fixtures/*.npz           # SWAMPE-generated reference snapshots
 │   └── test_*.py
-├── tests/                       # integration tests (not pytest-collected; minutes-long)
-│   └── compare_long_run_parity.py    # SWAMPE vs my_swamp parity + Figure 1 + speedup
-├── scripts/                     # reproducibility generators (not pytest-collected)
+├── scripts/                     # general-purpose, NOT paper-specific (not pytest-collected)
 │   ├── benchmark_scan.py             # forward-scan wall-clock microbenchmark
-│   ├── benchmark_gradient.py         # reverse-mode grad cost + vmap throughput (paper numbers)
-│   ├── make_sensitivity_figure.py    # Figure 2 (100-day AD sensitivity maps)
-│   ├── generate_reference_parity_fixtures.py
-│   └── science.mplstyle
+│   └── generate_reference_parity_fixtures.py  # regenerates unit_tests/fixtures/*.npz
 ├── retrieval/                   # downstream app: differentiable SWAMP -> phase-curve retrieval
 │   ├── run_smc.py                    # BlackJAX adaptive tempered SMC (gradient-informed kernel)
 │   ├── plot_smc.py                   # posterior / diagnostics plots
@@ -80,7 +75,20 @@ MY_SWAMP/
 │   └── README.md
 ├── data/                        # regenerable .npz inputs/outputs (gitignored)
 ├── figures/                     # generated figures + parity output bundles (gitignored)
-└── paper/                       # JOSS paper (LaTeX): paper.tex, paper.bib, figures, Makefile, README
+└── paper/                       # JOSS paper -- self-contained: text, figures, raw data, generators
+    ├── paper.tex, paper.bib, Makefile, README.md
+    ├── speed_benchmark.md             # CPU/GPU speed numbers + how they map into paper.tex
+    ├── scripts/                       # ALL paper-specific generators live here (2026-06-30 move
+    │   │                              # from top-level tests/ + scripts/, for self-containment)
+    │   ├── compare_long_run_parity.py    # SWAMPE vs my_swamp parity (Fig. 1) + CPU speed numbers
+    │   ├── make_sensitivity_figure.py    # Figure 2 (100-day AD sensitivity maps)
+    │   ├── benchmark_gradient.py         # reverse-mode grad cost + vmap throughput (CPU)
+    │   ├── swampe_gpu_vmap_test.ipynb    # GPU batched-throughput sweep (Colab; the real source
+    │   │                                #   of the paper's GPU numbers)
+    │   ├── swampe_gpu_vmap_test.py       # CLI port of the above, for non-Colab GPU machines
+    │   └── science.mplstyle              # plotting style shared by the generators above
+    └── benchmark_data/                # committed raw JSON + provenance for every paper number;
+                                        # see paper/benchmark_data/README.md before touching a number
 ```
 
 **The JOSS paper is LaTeX.** `paper/paper.tex` is the canonical, authoritative
@@ -225,11 +233,12 @@ JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 pytest -q -m parity
 JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=0 JAX_ENABLE_X64=0 pytest -q -m parity
 
 # Lint:
-ruff check src unit_tests tests scripts
+ruff check src unit_tests scripts paper/scripts
 
 # Long-run parity vs reference SWAMPE (requires ../SWAMPE/ to exist;
-# not part of pytest because it takes minutes):
-JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 python tests/compare_long_run_parity.py --days 100
+# not part of pytest because it takes minutes). Also the paper's CPU speed
+# benchmark source (--days 10); see paper/benchmark_data/README.md.
+JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 python paper/scripts/compare_long_run_parity.py --days 100
 
 # Regenerate parity fixtures (after a deliberate numerics change):
 JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 python scripts/generate_reference_parity_fixtures.py
@@ -347,7 +356,7 @@ When you make a change that affects locked numerical behavior:
 4. If the change invalidates the stored fixtures, regenerate them via
    `scripts/generate_reference_parity_fixtures.py` — and check in the new
    `.npz` files.
-5. Re-run `tests/compare_long_run_parity.py --days 100` and confirm
+5. Re-run `paper/scripts/compare_long_run_parity.py --days 100` and confirm
    `Phi` agrees with reference SWAMPE to better than `~1e-6` max-fractional.
 6. Update §3 in this file if the locked contract changed.
 
