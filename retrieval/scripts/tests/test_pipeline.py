@@ -76,6 +76,15 @@ def test_build_shapes(pipe):
     assert np.isfinite(np.asarray(pipe.B)).all()
 
 
+def test_observation_times_override_model_grid():
+    times = (0.0, 0.1, 0.2, 0.4, 0.7)
+    cfg = P.fast_cpu_config(model_days=1.0, n_times=99, observation_times_days=times)
+    pp = P.build_pipeline(cfg)
+    np.testing.assert_allclose(pp.times_days, np.asarray(times))
+    flux = np.asarray(pp.phase_curve_model_jit(pp.theta_truth))
+    assert flux.shape == (len(times),)
+
+
 def test_projector_is_left_inverse_of_weighted_design(pipe):
     # projector = (Bw^T Bw + ridge I)^-1 Bw^T  =>  projector @ Bw ~ I (small ridge)
     Bw = np.asarray(pipe.w_sqrt)[:, None] * np.asarray(pipe.B)
@@ -153,6 +162,24 @@ def test_likelihood_rejects_nonfinite_model(pipe):
     # through a monkey-free route: evaluate the documented floor value type/finiteness.
     val = float(pipe.log_likelihood_u(jnp.asarray(u_for_theta(pipe, pipe.param_truth), pipe.dtype)))
     assert math.isfinite(val)
+
+
+def test_linear_time_baseline_profiles_system_flux():
+    times = (0.0, 0.12, 0.24, 0.36, 0.48, 0.60)
+    cfg = P.fast_cpu_config(
+        model_days=1.0,
+        observation_times_days=times,
+        likelihood_baseline_mode="linear_time",
+    )
+    pp = P.build_pipeline(cfg)
+    planet_flux = np.asarray(pp.phase_curve_model_jit(pp.theta_truth))
+    centered = np.asarray(times) - np.mean(times)
+    flux_obs = planet_flux + 1.0 + 0.02 * centered
+    sigma = np.full_like(flux_obs, 1.0e-4)
+    pp.set_observations(flux_obs, obs_sigma=sigma)
+    profiled = np.asarray(pp.observed_flux_model_jit(pp.theta_truth))
+    np.testing.assert_allclose(profiled, flux_obs, atol=2.0e-6)
+    assert math.isfinite(float(pp.log_likelihood_u(jnp.asarray(u_for_theta(pp, pp.param_truth), pp.dtype))))
 
 
 # ---------------------------------------------------------------------------

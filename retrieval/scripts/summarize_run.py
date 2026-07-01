@@ -9,12 +9,15 @@ parameter correlations (the tau_rad-tau_drag degeneracy), SMC convergence
     python summarize_run.py [OUT_DIR]   # default ./swamp_jaxoplanet_retrieval_outputs
 """
 import json
+import os
 import sys
 from pathlib import Path
 
 import numpy as np
 
-OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else (Path(__file__).resolve().parent.parent / "data")
+OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(
+    os.environ.get("SWAMP_PLOT_OUT_DIR", str(Path(__file__).resolve().parent.parent / "data"))
+)
 
 
 def fmt(x):
@@ -30,20 +33,31 @@ def main():
     names = [str(x) for x in samps["param_names"].tolist()]
     labels = [str(x) for x in samps["param_labels"].tolist()] if "param_labels" in samps.files else names
     samples = np.asarray(samps["samples"]).reshape(-1, len(names))
-    truth = np.asarray(cfg.get("inferred_param_truth", obs["inferred_param_truth"]), float)
+    if "inferred_param_truth" in cfg:
+        truth = np.asarray(cfg["inferred_param_truth"], float)
+    elif "inferred_param_truth" in obs.files:
+        truth = np.asarray(obs["inferred_param_truth"], float)
+    else:
+        truth = np.full(len(names), np.nan)
+    has_truth = bool(np.isfinite(truth).all())
     prior_types = cfg.get("inferred_param_prior_types", ["?"] * len(names))
     prior_lo = np.asarray(cfg.get("inferred_param_prior_lo", [np.nan] * len(names)), float)
     prior_hi = np.asarray(cfg.get("inferred_param_prior_hi", [np.nan] * len(names)), float)
 
-    flux_true = np.asarray(obs["flux_true"]); sigma = float(obs["obs_sigma"])
-    amp = float(np.ptp(flux_true))
+    flux_obs = np.asarray(obs["flux_obs"])
+    flux_true = np.asarray(obs["flux_true"]) if "flux_true" in obs.files else np.full_like(flux_obs, np.nan)
+    has_flux_true = bool(np.isfinite(flux_true).any())
+    sigma = float(obs["obs_sigma"])
+    amp = float(np.nanmax(flux_true) - np.nanmin(flux_true)) if has_flux_true else float(np.nanmax(flux_obs) - np.nanmin(flux_obs))
+    amp_label = "phase amplitude" if has_flux_true else "observed flux span"
 
     L = []
-    L.append(f"# Retrieval summary — {OUT.name}\n")
+    run_kind = "injection-recovery" if has_flux_true else "real-data pilot"
+    L.append(f"# Retrieval summary — {OUT.name} ({run_kind})\n")
     L.append(f"- preset/model: M={cfg.get('M')} dt={cfg.get('dt_seconds')}s model_days={cfg.get('model_days')} "
              f"(n_steps≈{int(round(cfg.get('model_days',0)*86400/cfg.get('dt_seconds',1)))}), "
              f"use_x64={cfg.get('use_x64')}, emission={cfg.get('emission_model')}")
-    L.append(f"- data: n_times={cfg.get('n_times')}, phase amplitude={amp*1e6:.0f} ppm, "
+    L.append(f"- data: n_times={cfg.get('n_times')}, {amp_label}={amp*1e6:.0f} ppm, "
              f"obs_sigma={sigma*1e6:.0f} ppm, amplitude/noise={amp/sigma:.1f}")
     if extra is not None and "smc_betas" in extra.files:
         betas = np.asarray(extra["smc_betas"]).reshape(-1)
@@ -55,15 +69,22 @@ def main():
                  + (f", final_ESS={ess[-1]:.1f}/{N}" if ess is not None and len(ess) else "")
                  + (f", mean_accept={np.nanmean(acc):.2f}" if acc is not None and len(acc) else ""))
 
-    L.append("\n## Recovery (injected truth vs posterior)\n")
-    L.append("| param | truth | median | 68% CI | 95% CI | truth in 95%? |")
-    L.append("|---|---|---|---|---|---|")
+    L.append("\n## Posterior summary" + (" (injected truth vs posterior)" if has_truth else "") + "\n")
+    if has_truth:
+        L.append("| param | truth | median | 68% CI | 95% CI | truth in 95%? |")
+        L.append("|---|---|---|---|---|---|")
+    else:
+        L.append("| param | median | 68% CI | 95% CI |")
+        L.append("|---|---|---|---|")
     for i, nm in enumerate(labels):
         s = samples[:, i]
         q = np.percentile(s, [2.5, 16, 50, 84, 97.5])
-        in95 = q[0] <= truth[i] <= q[4]
-        L.append(f"| {nm} | {fmt(truth[i])} | {fmt(q[2])} | [{fmt(q[1])},{fmt(q[3])}] | "
-                 f"[{fmt(q[0])},{fmt(q[4])}] | {'YES' if in95 else 'NO'} |")
+        if has_truth:
+            in95 = q[0] <= truth[i] <= q[4]
+            L.append(f"| {nm} | {fmt(truth[i])} | {fmt(q[2])} | [{fmt(q[1])},{fmt(q[3])}] | "
+                     f"[{fmt(q[0])},{fmt(q[4])}] | {'YES' if in95 else 'NO'} |")
+        else:
+            L.append(f"| {nm} | {fmt(q[2])} | [{fmt(q[1])},{fmt(q[3])}] | [{fmt(q[0])},{fmt(q[4])}] |")
 
     if len(names) >= 2:
         C = np.corrcoef(samples.T)

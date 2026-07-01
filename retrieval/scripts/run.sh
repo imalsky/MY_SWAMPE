@@ -110,6 +110,7 @@ if [ "${SWAMP_SKIP_INSTALL:-0}" != "1" ]; then
   # while jax-cuda12-plugin (installed above, pinned to JAX_VERSION) is left
   # behind -- the two then mismatch and JAX silently falls back to CPU.
   python -m pip install --upgrade "blackjax>=1.2,<1.4"
+  python -m pip install --upgrade "corner>=2.2"
 fi
 # Fail loudly NOW if the version combo is broken, not mid-run.
 python - <<'PY'
@@ -118,7 +119,8 @@ from jaxoplanet.starry.light_curves import light_curve          # noqa: F401
 from jaxoplanet.starry.surface import Surface                   # noqa: F401
 import blackjax
 from blackjax.smc import adaptive_tempered, resampling          # noqa: F401
-print(f"jaxoplanet {jaxoplanet.__version__} | blackjax {getattr(blackjax,'__version__','?')} : imports OK")
+import corner
+print(f"jaxoplanet {jaxoplanet.__version__} | blackjax {getattr(blackjax,'__version__','?')} | corner {corner.__version__} : imports OK")
 PY
 
 # ── GPU / JAX backend verification (ABORT if not GPU under SLURM) ──

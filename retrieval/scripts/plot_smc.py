@@ -41,6 +41,24 @@ import matplotlib
 matplotlib.use("Agg")  # must be set before importing pyplot
 import matplotlib.pyplot as plt
 
+try:
+    import corner as corner_lib
+except Exception:
+    corner_lib = None
+
+try:
+    from scipy.stats import gaussian_kde
+except Exception:
+    gaussian_kde = None
+
+# Okabe-Ito colorblind-safe qualitative palette (Okabe & Ito 2002; Wong, Nature
+# Methods 2011) -- consistent role -> color mapping used across every retrieval plot.
+COLOR_TRUTH = "#D55E00"       # vermillion
+COLOR_POSTERIOR = "#0072B2"  # blue
+COLOR_BAND = "#56B4E9"       # sky blue (shaded bands / PPC)
+COLOR_DATA = "#000000"       # observed data points
+COLOR_ACCENT = "#009E73"     # bluish green (secondary series, e.g. ESS)
+
 # Publication style guide (the project's science.mplstyle, shipped alongside this
 # script). Applied to every figure so retrieval plots match the paper figures.
 _SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -65,6 +83,15 @@ PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 #   SWAMP_PLOT_LOG_LEVEL=DEBUG ./plot_smc.py
 _LOG_LEVEL_NAME = os.environ.get("SWAMP_PLOT_LOG_LEVEL", "INFO").upper()
 _LOG_LEVEL = getattr(logging, _LOG_LEVEL_NAME, logging.INFO)
+
+POSTERIOR_VISIBLE_MASS = 0.99
+POSTERIOR_RANGE_PAD_FRACTION = 0.08
+POSTERIOR_HIST_BINS = 64
+LOG_AXIS_MIN_VISIBLE_ORDERS = 1.0
+CORNER_MIN_BINS = 16
+CORNER_MAX_BINS = 32
+CORNER_HIST_BIN_FACTOR = 2
+CORNER_SMOOTH = 1.6
 
 
 # =============================================================================
@@ -333,13 +360,22 @@ if "fig_dpi" in cfg:
 obs_path = OUT_DIR / "observations.npz"
 obs = load_npz_required(
     obs_path,
-    required_keys=("times_days", "flux_true", "flux_obs", "obs_sigma", "orbital_period_days"),
+    required_keys=("times_days", "flux_obs", "obs_sigma", "orbital_period_days"),
 )
 times_days = np.asarray(obs["times_days"])
-flux_true = np.asarray(obs["flux_true"])
 flux_obs = np.asarray(obs["flux_obs"])
+flux_true = (
+    np.asarray(obs["flux_true"])
+    if "flux_true" in obs.files
+    else np.full_like(flux_obs, np.nan, dtype=float)
+)
+has_flux_true = bool(np.isfinite(flux_true).any())
 obs_sigma = float(obs["obs_sigma"])
 orbital_period_days = float(obs["orbital_period_days"])
+obs_sigma_vec = (
+    np.asarray(obs["obs_sigma_vec"], dtype=float) if "obs_sigma_vec" in obs.files
+    else np.full_like(flux_obs, obs_sigma)
+)
 obs.close()
 
 log_array_stats("times_days", times_days)
@@ -353,7 +389,8 @@ if not (math.isfinite(obs_sigma) and obs_sigma > 0.0):
 if not (math.isfinite(orbital_period_days) and orbital_period_days > 0.0):
     raise ValueError(f"orbital_period_days must be finite and > 0. Got {orbital_period_days!r}")
 
-validate_1d_same_length("times_days", times_days, "flux_true", flux_true)
+if has_flux_true:
+    validate_1d_same_length("times_days", times_days, "flux_true", flux_true)
 validate_1d_same_length("times_days", times_days, "flux_obs", flux_obs)
 check_monotonic_increasing("times_days", times_days)
 
@@ -503,6 +540,22 @@ def should_use_log_axis(
     return orders_of_magnitude_span(vmin, vmax) >= float(orders_threshold)
 
 
+def log_axis_for_param(j: int, v: np.ndarray, bounds: Tuple[float, float]) -> bool:
+    """Log axis whenever the parameter's own prior is log-uniform (its native sampling
+    space); otherwise fall back to the orders-of-magnitude heuristic."""
+    if j < len(prior_types) and str(prior_types[j]).strip().lower() == "log10_uniform":
+        return True
+    return should_use_log_axis(v, orders_threshold=orders_threshold, explicit_bounds=bounds)
+
+
+def display_log_axis(bounds: Tuple[float, float]) -> bool:
+    """Use log tick labels only when the visible range spans at least a decade."""
+    lo, hi = bounds
+    if lo <= 0.0 or hi <= 0.0:
+        return False
+    return orders_of_magnitude_span(float(lo), float(hi)) >= LOG_AXIS_MIN_VISIBLE_ORDERS
+
+
 def quantile_summary(v: np.ndarray) -> Tuple[float, float, float]:
     """Compute quantile summary."""
     v = finite_1d(v)
@@ -512,16 +565,92 @@ def quantile_summary(v: np.ndarray) -> Tuple[float, float, float]:
     return float(q16), float(q50), float(q84)
 
 
-def format_summary_line(name: str, truth: Optional[float], q16: float, q50: float, q84: float) -> str:
-    """Format summary line."""
-    if not (math.isfinite(q16) and math.isfinite(q50) and math.isfinite(q84)):
-        return f"{name}: (no finite posterior samples)"
-    plus = q84 - q50
-    minus = q50 - q16
-    if truth is None or (not math.isfinite(truth)):
-        return f"{name}: median={q50:.6g} (+{plus:.3g}/-{minus:.3g})"
-    delta = q50 - truth
-    return f"{name}: truth={truth:.6g} | median={q50:.6g} (+{plus:.3g}/-{minus:.3g}) | median-truth={delta:.3g}"
+def posterior_visible_range(
+    values: np.ndarray,
+    *,
+    use_log: bool,
+    hard_bounds: Optional[Tuple[float, float]] = None,
+    visible_mass: float = POSTERIOR_VISIBLE_MASS,
+    pad_fraction: float = POSTERIOR_RANGE_PAD_FRACTION,
+) -> Tuple[float, float]:
+    """Return a padded plotting range around the central posterior mass."""
+    v = finite_1d(values)
+    if use_log:
+        v = v[v > 0.0]
+
+    if v.size == 0:
+        if hard_bounds is not None:
+            return hard_bounds
+        return (-1.0, 1.0)
+
+    tail = 0.5 * (1.0 - float(visible_mass))
+    qlo = max(0.0, tail)
+    qhi = min(1.0, 1.0 - tail)
+    work = np.log10(v) if use_log else v
+
+    lo_w, hi_w = np.quantile(work, [qlo, qhi])
+    if not (math.isfinite(float(lo_w)) and math.isfinite(float(hi_w))) or float(lo_w) == float(hi_w):
+        lo_w = float(np.min(work))
+        hi_w = float(np.max(work))
+
+    span = float(hi_w - lo_w)
+    if span <= 0.0:
+        center = float(lo_w)
+        span = max(abs(center), 1.0) * 0.1
+        lo_w = center - span
+        hi_w = center + span
+    else:
+        lo_w = float(lo_w) - float(pad_fraction) * span
+        hi_w = float(hi_w) + float(pad_fraction) * span
+
+    lo = 10.0 ** lo_w if use_log else float(lo_w)
+    hi = 10.0 ** hi_w if use_log else float(hi_w)
+
+    if hard_bounds is not None:
+        bound_lo, bound_hi = hard_bounds
+        if math.isfinite(bound_lo):
+            lo = max(lo, float(bound_lo))
+        if math.isfinite(bound_hi):
+            hi = min(hi, float(bound_hi))
+
+    if not (math.isfinite(lo) and math.isfinite(hi)) or lo >= hi:
+        lo = float(np.min(v))
+        hi = float(np.max(v))
+        if hard_bounds is not None:
+            bound_lo, bound_hi = hard_bounds
+            lo = max(lo, float(bound_lo)) if math.isfinite(bound_lo) else lo
+            hi = min(hi, float(bound_hi)) if math.isfinite(bound_hi) else hi
+        if lo >= hi:
+            delta = max(abs(lo), 1.0) * 0.1
+            lo -= delta
+            hi += delta
+
+    return float(lo), float(hi)
+
+
+def adaptive_corner_bins(values: np.ndarray, bounds: Tuple[float, float], *, use_log: bool) -> int:
+    """Choose a stable corner-plot bin count from the visible samples."""
+    lo, hi = bounds
+    v = finite_1d(values)
+    if use_log:
+        v = v[v > 0.0]
+        lo, hi = np.log10([lo, hi])
+        v = np.log10(v)
+
+    v = v[(v >= lo) & (v <= hi)]
+    if v.size < 2:
+        return CORNER_MIN_BINS
+
+    q25, q75 = np.quantile(v, [0.25, 0.75])
+    iqr = float(q75 - q25)
+    span = float(hi - lo)
+    if iqr <= 0.0 or span <= 0.0:
+        raw_bins = int(np.ceil(np.sqrt(v.size)))
+    else:
+        width = 2.0 * iqr / np.cbrt(v.size)
+        raw_bins = int(np.ceil(span / width)) if width > 0.0 else int(np.ceil(np.sqrt(v.size)))
+
+    return int(np.clip(raw_bins, CORNER_MIN_BINS, CORNER_MAX_BINS))
 
 
 def get_param_meta_from_cfg(cfg_obj: Dict[str, Any]) -> Dict[str, Any]:
@@ -632,21 +761,21 @@ def plot_phase_curve() -> None:
     """Plot phase curve."""
     logger.info("Plotting phase_curve.png")
     fig, ax = plt.subplots(figsize=(7.5, 4.2))
-    ax.plot(times_days, flux_obs, ".", ms=3, label="observed", alpha=0.65)
-    ax.plot(times_days, flux_true, "-", lw=2, label="truth (noise-free)")
+    ax.plot(times_days, flux_obs, ".", ms=3, color=COLOR_DATA, label="observed", alpha=0.5)
+    if has_flux_true:
+        ax.plot(times_days, flux_true, "-", lw=2, color=COLOR_TRUTH, label="truth (noise-free)")
 
     if ppc_q is not None:
-        ax.plot(times_days, ppc_q["p50"], "-", lw=2, label="posterior median")
-        ax.fill_between(times_days, ppc_q["p05"], ppc_q["p95"], alpha=0.25, label="90% PPC band")
+        ax.plot(times_days, ppc_q["p50"], "-", lw=2, color=COLOR_POSTERIOR, label="posterior median")
+        ax.fill_between(times_days, ppc_q["p05"], ppc_q["p95"], alpha=0.3, color=COLOR_BAND, label="90% PPC band")
 
     # Mark transit and secondary eclipse (approx)
     t0 = float(cfg.get("time_transit_days", 0.0))
-    ax.axvline(t0, ls="--", lw=1, alpha=0.6)
-    ax.axvline(t0 + 0.5 * orbital_period_days, ls="--", lw=1, alpha=0.6)
+    ax.axvline(t0, ls="--", lw=1, alpha=0.6, color="0.4")
+    ax.axvline(t0 + 0.5 * orbital_period_days, ls="--", lw=1, alpha=0.6, color="0.4")
 
     ax.set_xlabel("Time [days]")
     ax.set_ylabel("Planet flux (relative)")
-    ax.set_title("Thermal phase curve (SWAMP + starry)")
     ax.legend(loc="best", fontsize=9)
     save_fig(fig, "phase_curve.png")
 
@@ -654,16 +783,25 @@ def plot_phase_curve() -> None:
 def plot_phase_curve_residuals() -> None:
     """Plot phase curve residuals."""
     logger.info("Plotting phase_curve_residuals.png")
-    model = ppc_q["p50"] if ppc_q is not None else flux_true
+    if ppc_q is not None:
+        model = ppc_q["p50"]
+        model_label = "model"
+    elif has_flux_true:
+        model = flux_true
+        model_label = "truth"
+    else:
+        model = np.full_like(flux_obs, np.nanmedian(flux_obs), dtype=float)
+        model_label = "median observed flux"
     resid = flux_obs - model
     log_array_stats("phase_curve_residuals", resid)
 
     fig, ax = plt.subplots(figsize=(7.5, 3.8))
-    ax.plot(times_days, resid, ".", ms=3, alpha=0.7)
-    ax.axhline(0.0, lw=1)
+    ax.errorbar(times_days, resid, yerr=obs_sigma_vec, fmt=".", ms=3, alpha=0.6, color=COLOR_DATA,
+                ecolor="0.7", elinewidth=0.8, capsize=0, label=f"obs - {model_label} (±1σ noise)")
+    ax.axhline(0.0, lw=1, color=COLOR_TRUTH)
     ax.set_xlabel("Time [days]")
     ax.set_ylabel("Residual (obs - model)")
-    ax.set_title("Residuals")
+    ax.legend(loc="best", fontsize=9)
     save_fig(fig, "phase_curve_residuals.png")
 
 
@@ -687,27 +825,27 @@ def plot_posterior_1d_and_overlay_priors() -> None:
             logger.warning(f"No finite posterior samples for {name}; skipping 1D posterior plot.")
             continue
 
-        # Plot range: prefer prior bounds if available; else robust quantiles.
+        # Plot range: use posterior mass, not the full prior, so concentrated
+        # retrievals remain readable.
+        prior_bounds: Optional[Tuple[float, float]] = None
         if prior_lo is not None and prior_hi is not None and j < prior_lo.size:
-            lo = float(prior_lo[j])
-            hi = float(prior_hi[j])
-            source = "prior bounds"
+            prior_bounds = (float(prior_lo[j]), float(prior_hi[j]))
+
+        if prior_bounds is not None:
+            axis_probe_bounds = prior_bounds
         else:
             qlo, qhi = np.quantile(v, [0.001, 0.999])
-            lo, hi = float(qlo), float(qhi)
-            source = "posterior 0.1%-99.9% quantiles"
+            axis_probe_bounds = (float(qlo), float(qhi))
 
-        if not (math.isfinite(lo) and math.isfinite(hi)) or lo == hi:
-            logger.warning(f"{name}: degenerate/non-finite plotting bounds (lo={lo}, hi={hi}); expanding.")
-            lo = float(np.min(v))
-            hi = float(np.max(v))
-            if lo == hi:
-                lo -= 1.0
-                hi += 1.0
-
-        # Axis scaling choice: only use log if values span many orders and are positive.
-        use_log = should_use_log_axis(v, orders_threshold=orders_threshold, explicit_bounds=(lo, hi))
-        logger.info(f"{name}: x-range from {source}: lo={lo:.6g}, hi={hi:.6g}, use_log={use_log}")
+        # Axis scaling: log if the parameter's own prior is log-uniform (its native
+        # sampling space), else fall back to the orders-of-magnitude heuristic.
+        natural_log = log_axis_for_param(j, v, axis_probe_bounds)
+        lo, hi = posterior_visible_range(v, use_log=natural_log, hard_bounds=prior_bounds)
+        use_log = display_log_axis((lo, hi))
+        logger.info(
+            f"{name}: x-range from central {100.0 * POSTERIOR_VISIBLE_MASS:.1f}% posterior mass: "
+            f"lo={lo:.6g}, hi={hi:.6g}, use_log={use_log}"
+        )
 
         fig, ax = plt.subplots(figsize=(7.0, 4.0))
 
@@ -717,43 +855,68 @@ def plot_posterior_1d_and_overlay_priors() -> None:
                 logger.warning(f"{name}: requested log bins but lo<=0 (lo={lo}); falling back to linear bins.")
                 use_log = False
             else:
-                bins: Any = np.logspace(np.log10(lo), np.log10(hi), 45)
+                bins: Any = np.logspace(np.log10(lo), np.log10(hi), POSTERIOR_HIST_BINS)
         if not use_log:
-            bins = 45
+            bins = POSTERIOR_HIST_BINS
 
-        ax.hist(v, bins=bins, density=True, alpha=0.75, label="posterior")
+        ax.hist(v, bins=bins, density=True, alpha=0.35, color=COLOR_POSTERIOR, label="posterior (hist)")
+
+        # Grid shared by the prior curve and the posterior KDE overlay below.
+        xx = np.logspace(np.log10(lo), np.log10(hi), 400) if (use_log and lo > 0.0) else np.linspace(lo, hi, 400)
+
+        # Smooth posterior density (KDE) on top of the histogram -- overlaid KDEs read
+        # more clearly than histograms alone (see chat sources on MCMC visualization
+        # best practice). For a log-axis parameter, fit the KDE in log10-space (its
+        # natural, well-behaved scale) and map back via the log Jacobian 1/(x*ln10).
+        if gaussian_kde is not None and v.size > 5:
+            try:
+                if use_log:
+                    v_kde = v[v > 0.0]
+                    log_v = np.log10(v_kde)
+                    kde_vals = gaussian_kde(log_v)(np.log10(xx)) / (xx * np.log(10.0)) if np.std(log_v) > 0 else None
+                else:
+                    kde_vals = gaussian_kde(v)(xx) if np.std(v) > 0 else None
+                if kde_vals is not None:
+                    ax.plot(xx, kde_vals, lw=2.5, color=COLOR_POSTERIOR, label="posterior (KDE)")
+            except Exception:
+                logger.debug(f"{name}: KDE overlay failed; showing histogram only.", exc_info=True)
 
         # Overlay prior density if we know it
         if prior_lo is not None and prior_hi is not None and j < prior_lo.size:
             ptype = str(prior_types[j]).strip().lower() if j < len(prior_types) else "uniform"
-            xx = np.linspace(lo, hi, 400)
-            if use_log and lo > 0.0:
-                xx = np.logspace(np.log10(lo), np.log10(hi), 400)
+            prior_bound_lo = float(prior_lo[j])
+            prior_bound_hi = float(prior_hi[j])
 
-            if ptype == "uniform":
-                pdf = np.ones_like(xx) / (hi - lo)
+            if ptype == "uniform" and prior_bound_hi > prior_bound_lo:
+                pdf = np.ones_like(xx) / (prior_bound_hi - prior_bound_lo)
             elif ptype == "log10_uniform":
                 # Uniform in log10(x) => p(x) ∝ 1 / x
-                if lo <= 0.0:
+                if prior_bound_lo <= 0.0 or prior_bound_hi <= prior_bound_lo:
                     pdf = np.full_like(xx, np.nan)
                 else:
-                    pdf = 1.0 / (xx * np.log(hi / lo))
+                    pdf = 1.0 / (xx * np.log(prior_bound_hi / prior_bound_lo))
             else:
                 logger.warning(f"{name}: unknown prior type {ptype!r}; not overlaying prior.")
                 pdf = np.full_like(xx, np.nan)
 
-            ax.plot(xx, pdf, lw=2, label=f"prior ({ptype})")
+            ax.plot(xx, pdf, lw=2, ls=":", color="0.4", label=f"prior ({ptype})")
+
+        # Posterior median + 68% credible interval (always available from samples)
+        q16, q50, q84 = quantile_summary(v)
+        if math.isfinite(q16) and math.isfinite(q84):
+            ax.axvspan(q16, q84, alpha=0.15, color=COLOR_POSTERIOR, label="68% CI")
+        if math.isfinite(q50):
+            ax.axvline(q50, color=COLOR_POSTERIOR, ls="--", lw=1.5, label=f"median = {q50:.3g}")
 
         # Truth line if present
         if truth_vals is not None and j < truth_vals.size:
             truth = float(truth_vals[j])
             if math.isfinite(truth):
-                ax.axvline(truth, lw=2, alpha=0.9, label="truth")
+                ax.axvline(truth, color=COLOR_TRUTH, lw=2, alpha=0.9, label="truth")
 
         ax.set_xlim(lo, hi)
         ax.set_xlabel(label)
         ax.set_ylabel("PDF")
-        ax.set_title(f"Posterior (1D): {name}")
         if use_log:
             ax.set_xscale("log")
 
@@ -763,8 +926,11 @@ def plot_posterior_1d_and_overlay_priors() -> None:
 
 
 def plot_corner_with_text() -> None:
-    """Custom corner plot that supports per-parameter log axes + summary text box."""
+    """Plot the posterior corner plot with the standard `corner` package."""
     logger.info("Plotting corner_posterior.png")
+    if corner_lib is None:
+        raise RuntimeError("The `corner` package is required for corner_posterior.png. Install with `python -m pip install corner`.")
+
     flat = flatten_chain_draw(samples)  # (N, D)
     if flat.ndim != 2:
         raise ValueError(f"Flattened samples must be 2D (N,D). Got shape={flat.shape}")
@@ -782,117 +948,66 @@ def plot_corner_with_text() -> None:
         logger.error("No finite posterior draws; skipping corner plot.")
         return
 
-    # Ranges: use prior bounds if available; else robust quantiles.
+    # Ranges: use posterior mass, not full prior bounds, so concentrated
+    # posteriors do not render as a tiny corner of the panel.
     ranges: List[Tuple[float, float]] = []
-    for j in range(d):
-        v = flat[:, j]
-        if prior_lo is not None and prior_hi is not None and j < prior_lo.size:
-            lo, hi = float(prior_lo[j]), float(prior_hi[j])
-        else:
-            qlo, qhi = np.quantile(v, [0.001, 0.999])
-            lo, hi = float(qlo), float(qhi)
-        if not math.isfinite(lo) or not math.isfinite(hi) or lo == hi:
-            lo, hi = float(np.min(v)), float(np.max(v))
-            if lo == hi:
-                lo -= 1.0
-                hi += 1.0
-        ranges.append((lo, hi))
-
-    # Decide axis scaling per parameter.
+    corner_bins: List[int] = []
     use_log_axis: List[bool] = []
     for j in range(d):
         v = flat[:, j]
-        use_log_axis.append(should_use_log_axis(v, orders_threshold=orders_threshold, explicit_bounds=ranges[j]))
-        logger.info(f"corner axis {param_names[j] if j < len(param_names) else j}: range={ranges[j]}, log={use_log_axis[-1]}")
-    # Prepare truth values if available.
-    truths: Optional[List[float]] = None
-    if truth_vals is not None and truth_vals.size >= d:
-        truths = [float(x) for x in truth_vals[:d].tolist()]
+        prior_bounds: Optional[Tuple[float, float]] = None
+        if prior_lo is not None and prior_hi is not None and j < prior_lo.size:
+            prior_bounds = (float(prior_lo[j]), float(prior_hi[j]))
+            axis_probe_bounds = prior_bounds
+        else:
+            qlo, qhi = np.quantile(v, [0.001, 0.999])
+            axis_probe_bounds = (float(qlo), float(qhi))
 
-    # Build summary text (truth vs recovered, errors).
-    lines: List[str] = []
-    for j in range(d):
-        q16, q50, q84 = quantile_summary(flat[:, j])
-        truth = None if truths is None else truths[j]
+        natural_log = log_axis_for_param(j, v, axis_probe_bounds)
+        lo, hi = posterior_visible_range(v, use_log=natural_log, hard_bounds=prior_bounds)
+        use_log = display_log_axis((lo, hi))
+        ranges.append((lo, hi))
+        use_log_axis.append(use_log)
+        corner_bins.append(adaptive_corner_bins(v, (lo, hi), use_log=use_log))
         name = param_names[j] if j < len(param_names) else f"param_{j}"
-        lines.append(format_summary_line(name, truth, q16, q50, q84))
-    summary_text = "\n".join(lines)
+        logger.info(f"corner axis {name}: range={(lo, hi)}, log={use_log}, bins={corner_bins[-1]}")
 
-    # Corner layout: D x D grid, hist on diagonal, scatter below diagonal.
-    fig = plt.figure(figsize=(2.2 * d + 1.5, 2.2 * d + 1.5))
-    gs = fig.add_gridspec(d, d, wspace=0.05, hspace=0.05)
+    truths: Optional[List[Optional[float]]] = None
+    if truth_vals is not None and truth_vals.size >= d:
+        truths = []
+        for x in truth_vals[:d].tolist():
+            truth = float(x)
+            truths.append(truth if math.isfinite(truth) else None)
 
-    for i in range(d):
-        for j in range(d):
-            ax = fig.add_subplot(gs[i, j])
-
-            if i < j:
-                ax.axis("off")
-                continue
-
-            x = flat[:, j]
-            y = flat[:, i] if i != j else None
-
-            # Axis ranges
-            xlo, xhi = ranges[j]
-            ax.set_xlim(xlo, xhi)
-            if i != j:
-                ylo, yhi = ranges[i]
-                ax.set_ylim(ylo, yhi)
-
-            # Log scales if needed (no log-transform of data; just axis scaling)
-            if use_log_axis[j]:
-                ax.set_xscale("log")
-            if i != j and use_log_axis[i]:
-                ax.set_yscale("log")
-
-            if i == j:
-                v = x[np.isfinite(x)]
-                if v.size == 0:
-                    ax.text(0.5, 0.5, "no finite", ha="center", va="center")
-                else:
-                    if use_log_axis[j] and xlo > 0.0:
-                        bins = np.logspace(np.log10(xlo), np.log10(xhi), 40)
-                    else:
-                        bins = 40
-                    ax.hist(v, bins=bins, density=True, alpha=0.85)
-
-                if truths is not None and j < len(truths) and math.isfinite(truths[j]):
-                    ax.axvline(truths[j], lw=2, alpha=0.9)
-
-            else:
-                assert y is not None
-                m = np.isfinite(x) & np.isfinite(y)
-                ax.plot(x[m], y[m], ".", ms=1.5, alpha=0.25)
-
-                if truths is not None and j < len(truths) and i < len(truths):
-                    if math.isfinite(truths[j]) and math.isfinite(truths[i]):
-                        ax.axvline(truths[j], lw=1.5, alpha=0.9)
-                        ax.axhline(truths[i], lw=1.5, alpha=0.9)
-
-            # Ticks/labels
-            if i == d - 1:
-                ax.set_xlabel(param_labels[j] if j < len(param_labels) else str(j), fontsize=9)
-            else:
-                ax.set_xticklabels([])
-
-            if j == 0 and i != 0:
-                ax.set_ylabel(param_labels[i] if i < len(param_labels) else str(i), fontsize=9)
-            else:
-                ax.set_yticklabels([])
-
-    # Summary text box
-    fig.text(
-        0.99,
-        0.99,
-        summary_text,
-        ha="right",
-        va="top",
-        fontsize=8.5,
-        family="monospace",
-        bbox=dict(boxstyle="round", alpha=0.15),
+    fig = corner_lib.corner(
+        flat,
+        bins=corner_bins,
+        range=ranges,
+        axes_scale=["log" if use_log else "linear" for use_log in use_log_axis],
+        color="0.15",
+        labels=[param_labels[j] if j < len(param_labels) else str(j) for j in range(d)],
+        truths=truths,
+        truth_color="0.02",
+        quantiles=[0.16, 0.50, 0.84],
+        show_titles=True,
+        title_quantiles=[0.16, 0.50, 0.84],
+        title_fmt=".3g",
+        hist_bin_factor=CORNER_HIST_BIN_FACTOR,
+        smooth=CORNER_SMOOTH,
+        smooth1d=CORNER_SMOOTH,
+        levels=(0.393, 0.675, 0.864, 0.955),
+        plot_datapoints=False,
+        plot_density=True,
+        plot_contours=True,
+        fill_contours=True,
+        max_n_ticks=4,
+        use_math_text=True,
+        quiet=True,
+        hist_kwargs={"color": "0.25", "alpha": 0.85},
+        contour_kwargs={"colors": "0.10", "linewidths": 1.2},
+        contourf_kwargs={"colors": ["1.0", "0.88", "0.70", "0.48", "0.28"]},
+        pcolor_kwargs={"cmap": "Greys"},
     )
-    fig.suptitle("Posterior corner + summary (truth vs recovered)", y=1.01)
 
     path = PLOTS_DIR / "corner_posterior.png"
     fig.savefig(path, bbox_inches="tight")
@@ -1007,23 +1122,6 @@ def plot_smc_diagnostics() -> None:
         ax.axis("off")
 
     save_fig(fig, "smc_diagnostics.png")
-
-    # Final weights: plot weights on a log-x axis ONLY if they span many orders.
-    if "smc_final_weights" in extra.files:
-        w = np.asarray(extra["smc_final_weights"]).reshape(-1)
-        log_array_stats("smc_final_weights", w)
-        w = w[np.isfinite(w) & (w > 0)]
-        if w.size > 0:
-            fig, ax = plt.subplots(figsize=(7, 4))
-            ax.hist(w, bins=60, alpha=0.85)
-            ax.set_xlabel("final weight")
-            ax.set_ylabel("count")
-            ax.set_title("Final SMC importance weights")
-            if should_use_log_axis(w, orders_threshold=orders_threshold):
-                ax.set_xscale("log")
-            save_fig(fig, "smc_final_weights_hist.png")
-        else:
-            logger.info("smc_final_weights present but empty/non-finite; skipping weight histogram.")
 
 
 def plot_maps() -> None:

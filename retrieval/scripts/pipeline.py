@@ -160,6 +160,7 @@ class Config:
 
     # Synthetic observations
     generate_synthetic_data: bool = True
+    observation_times_days: Optional[Tuple[float, ...]] = None
     n_times: int = 250
     n_orbits_observed: float = 1.0
     # Noise model for the synthetic phase-curve points:
@@ -171,6 +172,7 @@ class Config:
     noise_model: str = "white"  # {"white", "photon"}
     obs_sigma: float = 80e-6     # used when noise_model == "white"
     sigma_phot: float = 50e-6    # photon-floor per-point fractional noise at unit flux
+    likelihood_baseline_mode: str = "none"  # {"none", "linear_time"}
     taurad_true_hours: float = 10.0
     taudrag_true_hours: float = 6.0
 
@@ -271,6 +273,7 @@ class Config:
 _VALID_EMISSION = {"bolometric", "planck"}
 _VALID_KERNELS = {"mala", "hmc"}
 _VALID_RESAMPLING = {"systematic", "stratified", "multinomial"}
+_VALID_BASELINES = {"none", "linear_time"}
 
 
 def validate_config(cfg: Config) -> None:
@@ -283,6 +286,10 @@ def validate_config(cfg: Config) -> None:
         raise ValueError(f"cfg.smc_resampling must be one of {_VALID_RESAMPLING}, got {cfg.smc_resampling!r}")
     if str(cfg.noise_model).strip().lower() not in {"white", "photon"}:
         raise ValueError(f"cfg.noise_model must be 'white' or 'photon', got {cfg.noise_model!r}")
+    if str(cfg.likelihood_baseline_mode).strip().lower() not in _VALID_BASELINES:
+        raise ValueError(
+            f"cfg.likelihood_baseline_mode must be one of {_VALID_BASELINES}, got {cfg.likelihood_baseline_mode!r}"
+        )
     if str(cfg.emission_temp_mode).strip().lower() not in {"geopotential", "linear"}:
         raise ValueError(f"cfg.emission_temp_mode must be 'geopotential' or 'linear', got {cfg.emission_temp_mode!r}")
     if cfg.model_days <= 0:
@@ -295,6 +302,14 @@ def validate_config(cfg: Config) -> None:
         raise ValueError("cfg.smc_num_particles must be > 0")
     if cfg.num_chains <= 0 or cfg.num_samples <= 0:
         raise ValueError("cfg.num_chains and cfg.num_samples must be > 0")
+    if cfg.observation_times_days is not None:
+        times = np.asarray(cfg.observation_times_days, dtype=np.float64).reshape(-1)
+        if times.size < 2:
+            raise ValueError("cfg.observation_times_days must contain at least two times.")
+        if not np.all(np.isfinite(times)):
+            raise ValueError("cfg.observation_times_days contains non-finite values.")
+        if np.any(np.diff(times) < 0.0):
+            raise ValueError("cfg.observation_times_days must be monotonic increasing.")
 
 
 # =============================================================================
@@ -692,11 +707,20 @@ def build_pipeline(cfg: Config) -> Pipeline:
         if cfg.orbital_period_override_days is not None
         else float((2.0 * math.pi / cfg.omega_rad_s) / 86400.0)
     )
-    times_days = np.linspace(
-        cfg.time_transit_days, cfg.time_transit_days + cfg.n_orbits_observed * orbital_period_days_base,
-        cfg.n_times, endpoint=False,
-    ).astype(npdtype)
+    if cfg.observation_times_days is None:
+        times_days = np.linspace(
+            cfg.time_transit_days, cfg.time_transit_days + cfg.n_orbits_observed * orbital_period_days_base,
+            cfg.n_times, endpoint=False,
+        ).astype(npdtype)
+    else:
+        times_days = np.asarray(cfg.observation_times_days, dtype=npdtype).reshape(-1)
     times_days_jax = jnp.asarray(times_days, dtype=dtype)
+    times_centered = times_days - float(np.mean(times_days))
+    baseline_design_jax = jnp.stack(
+        [jnp.ones_like(times_days_jax), jnp.asarray(times_centered, dtype=dtype)],
+        axis=1,
+    )
+    likelihood_baseline_mode = str(cfg.likelihood_baseline_mode).strip().lower()
 
     # ---- SWAMP forward (terminal Phi) ----
     _fast_path_ok = (not cfg.force_rebuild_static) and not (
@@ -716,8 +740,13 @@ def build_pipeline(cfg: Config) -> Pipeline:
 
         sim_last = getattr(swamp_model, "simulate_scan_last", None) or getattr(swamp_model, "run_model_scan_final", None)
         if sim_last is not None:
+            # `simulate_scan_last` never accepts jit_scan/return_history (it always
+            # returns state-only, no history, and doesn't jit internally); only include
+            # them for the run_model_scan_final fallback, which does.
             kwargs = dict(static=static, flags=flags, state0=state0, t_seq=t_seq, test=None,
-                          Uic=U0, Vic=V0, remat_step=False, jit_scan=True, return_history=False)
+                          Uic=U0, Vic=V0, remat_step=False)
+            if sim_last is not getattr(swamp_model, "simulate_scan_last", None):
+                kwargs.update(jit_scan=True, return_history=False)
             out = call_with_filtered_kwargs(sim_last, kwargs, name=getattr(sim_last, "__name__", "simulate_scan_last"))
             last_state = out
             if isinstance(out, dict) and "last_state" in out:
@@ -831,18 +860,36 @@ def build_pipeline(cfg: Config) -> Pipeline:
     # ---- likelihood (needs observations injected later via .set_observations) ----
     pipe = Pipeline()
 
+    def observed_flux_model(theta):
+        mu_pred = phase_curve_model_jit(theta)
+        flux_obs_jax = pipe.flux_obs_jax
+        sig = jnp.broadcast_to(pipe.obs_sigma_jax, mu_pred.shape)
+        if likelihood_baseline_mode == "none":
+            return mu_pred
+
+        y = flux_obs_jax - mu_pred
+        w = 1.0 / jnp.square(sig)
+        x = baseline_design_jax
+        xtw = x.T * w[None, :]
+        xtwx = xtw @ x
+        xtwy = xtw @ y
+        beta = jnp.linalg.solve(xtwx, xtwy)
+        return mu_pred + x @ beta
+
+    observed_flux_model_jit = jax.jit(observed_flux_model)
+
     def log_likelihood_u(u):
         theta = theta_from_u(u)
-        mu_pred = phase_curve_model_jit(theta)
-        finite = jnp.all(jnp.isfinite(mu_pred))
+        mu_model = observed_flux_model_jit(theta)
+        finite = jnp.all(jnp.isfinite(mu_model))
         flux_obs_jax = pipe.flux_obs_jax
         # Per-point sigma: scalar (white) or vector (heteroscedastic photon noise),
         # broadcast to the data shape so the same code path handles both.
-        sig = jnp.broadcast_to(pipe.obs_sigma_jax, mu_pred.shape)
+        sig = jnp.broadcast_to(pipe.obs_sigma_jax, mu_model.shape)
 
         def _ok():
-            resid = (flux_obs_jax - mu_pred) / sig
-            n = mu_pred.size
+            resid = (flux_obs_jax - mu_model) / sig
+            n = mu_model.size
             return (-0.5 * jnp.sum(resid * resid) - jnp.sum(jnp.log(sig))
                     - 0.5 * n * jnp.log(jnp.asarray(2.0 * math.pi, dtype=dtype)))
 
@@ -912,11 +959,13 @@ def build_pipeline(cfg: Config) -> Pipeline:
         lon=lon, lat=lat, lon_flat=lon_flat, lat_flat=lat_flat, w_pix=w_pix, w_sqrt=w_sqrt,
         lm_list=lm_list, n_coeff=n_coeff, n_pix=n_pix, B=B, projector=projector,
         times_days=times_days, times_days_jax=times_days_jax,
+        baseline_design_jax=baseline_design_jax,
         orbital_period_days_base=orbital_period_days_base, _fast_path_ok=_fast_path_ok,
         swamp_terminal_phi=swamp_terminal_phi,
         phi_to_temperature=phi_to_temperature, temperature_to_intensity=temperature_to_intensity,
         intensity_map_to_y_dense=intensity_map_to_y_dense, ylm_from_dense=ylm_from_dense,
         phase_curve_model=phase_curve_model, phase_curve_model_jit=phase_curve_model_jit,
+        observed_flux_model=observed_flux_model, observed_flux_model_jit=observed_flux_model_jit,
         theta_from_u=theta_from_u, log_prior_u=log_prior_u, sample_prior_u=sample_prior_u,
         log_likelihood_u=log_likelihood_u, loglikelihood_for_blackjax=loglikelihood_for_blackjax,
         use_custom_grads=use_custom_grads, theta_truth=theta_truth,
@@ -927,9 +976,17 @@ def build_pipeline(cfg: Config) -> Pipeline:
     ))
 
     def set_observations(flux_obs, obs_sigma=None):
-        pipe.flux_obs = np.asarray(flux_obs)
+        flux_arr = np.asarray(flux_obs)
+        if flux_arr.shape != pipe.times_days.shape:
+            raise ValueError(f"flux_obs shape {flux_arr.shape} does not match times_days shape {pipe.times_days.shape}.")
+        pipe.flux_obs = flux_arr
         pipe.flux_obs_jax = jnp.asarray(flux_obs, dtype=dtype)
         if obs_sigma is not None:
+            sigma_arr = np.asarray(obs_sigma)
+            if sigma_arr.shape not in ((), pipe.times_days.shape):
+                raise ValueError(
+                    f"obs_sigma shape {sigma_arr.shape} must be scalar or match times_days shape {pipe.times_days.shape}."
+                )
             pipe.obs_sigma_jax = jnp.asarray(obs_sigma, dtype=dtype)
 
     pipe.set_observations = set_observations

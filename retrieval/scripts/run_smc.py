@@ -16,6 +16,7 @@ Presets / overrides (env vars, read before JAX import)
 - ``SWAMP_RETRIEVAL_USE_X64`` : ``0``/``1`` to force precision (overrides preset).
 - ``SWAMP_RETRIEVAL_OVERRIDES``: JSON object of Config field overrides, e.g.
                                  ``'{"model_days": 3.0, "obs_sigma": 5e-5}'``.
+- ``SWAMP_RETRIEVAL_OVERRIDES_FILE``: JSON file of Config field overrides.
 - ``SWAMP_PLOT_OUT_DIR`` / ``cfg.out_dir`` : where outputs are written.
 
 Examples
@@ -69,13 +70,37 @@ def make_config() -> P.Config:
     # Default outputs land in retrieval/data/ (overridable below).
     cfg = replace(cfg, out_dir=P.DATA_DIR)
 
+    overrides: Dict[str, Any] = {}
+    ov_file = os.environ.get("SWAMP_RETRIEVAL_OVERRIDES_FILE", "").strip()
+    if ov_file:
+        overrides.update(json.loads(Path(ov_file).read_text()))
     ov = os.environ.get("SWAMP_RETRIEVAL_OVERRIDES", "").strip()
     if ov:
-        overrides: Dict[str, Any] = json.loads(ov)
+        overrides.update(json.loads(ov))
+    if overrides:
         if "out_dir" in overrides:
-            overrides["out_dir"] = Path(overrides["out_dir"])
+            out_dir = Path(overrides["out_dir"])
+            if not out_dir.is_absolute():
+                out_dir = (Path(__file__).resolve().parent / out_dir).resolve()
+            overrides["out_dir"] = out_dir
         cfg = replace(cfg, **overrides)
     return cfg
+
+
+def preload_real_observation_times(cfg: P.Config) -> P.Config:
+    """Inject saved real-data times before building the JAX light-curve model."""
+    if cfg.generate_synthetic_data or cfg.observation_times_days is not None:
+        return cfg
+
+    obs_path = cfg.out_dir / "observations.npz"
+    if not obs_path.exists():
+        return cfg
+
+    with np.load(obs_path, allow_pickle=True) as obs:
+        if "times_days" not in obs.files:
+            return cfg
+        times_days = np.asarray(obs["times_days"], dtype=np.float64).reshape(-1)
+    return replace(cfg, observation_times_days=tuple(float(x) for x in times_days), n_times=int(times_days.size))
 
 
 def write_config_json(cfg: P.Config, pipe: P.Pipeline) -> None:
@@ -93,7 +118,7 @@ def write_config_json(cfg: P.Config, pipe: P.Pipeline) -> None:
 
 
 def main() -> None:
-    cfg = make_config()
+    cfg = preload_real_observation_times(make_config())
     P.validate_config(cfg)
     cfg.out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -136,13 +161,22 @@ def main() -> None:
         d = np.load(obs_path)
         sigma_load = d["obs_sigma_vec"] if "obs_sigma_vec" in d.files else float(d["obs_sigma"])
         pipe.set_observations(d["flux_obs"], obs_sigma=sigma_load)
-        pipe.flux_true = np.asarray(d["flux_true"])
+        pipe.flux_true = (
+            np.asarray(d["flux_true"])
+            if "flux_true" in d.files
+            else np.full_like(np.asarray(d["flux_obs"], dtype=np.float64), np.nan)
+        )
         sigma_vec = np.atleast_1d(np.asarray(sigma_load, dtype=np.float64))
         logger.info(f"Loaded observations from: {obs_path}")
 
-    amp = float(np.ptp(pipe.flux_true))
+    if pipe.flux_true is not None and np.isfinite(pipe.flux_true).any():
+        amp = float(np.nanmax(pipe.flux_true) - np.nanmin(pipe.flux_true))
+        amp_label = "Truth phase-curve amplitude"
+    else:
+        amp = float(np.nanmax(pipe.flux_obs) - np.nanmin(pipe.flux_obs))
+        amp_label = "Observed flux span"
     sig_mean = float(np.mean(sigma_vec))
-    logger.info(f"Truth phase-curve amplitude={amp*1e6:.1f} ppm | per-point sigma "
+    logger.info(f"{amp_label}={amp*1e6:.1f} ppm | per-point sigma "
                 f"[{sigma_vec.min()*1e6:.1f}-{sigma_vec.max()*1e6:.1f}] ppm (mean {sig_mean*1e6:.1f}) "
                 f"| amplitude/noise={amp/sig_mean:.1f}")
 
@@ -194,7 +228,8 @@ def main() -> None:
             logger.info(f"  {name:16s} {q[1]:9.3f} [{q[0]:8.3f},{q[2]:8.3f}]  truth={truth[i]:9.3f}  ({inside} 90% CI)")
     else:
         if not samples_path.exists():
-            raise FileNotFoundError(f"posterior_samples.npz not found at {samples_path}")
+            logger.info("run_inference=False and no posterior_samples.npz exists; stopping after build/observation smoke.")
+            return
         logger.info("run_inference=False; using existing posterior_samples.npz.")
 
     # ---- posterior predictive ----
@@ -209,7 +244,7 @@ def main() -> None:
         preds = []
         for i0 in range(0, n_take, int(cfg.ppc_chunk_size)):
             batch = jnp.asarray(sel[i0:i0 + int(cfg.ppc_chunk_size)], pipe.dtype)
-            preds.append(np.asarray(jax.vmap(pipe.phase_curve_model_jit)(batch)))
+            preds.append(np.asarray(jax.vmap(pipe.observed_flux_model_jit)(batch)))
         ppc = np.concatenate(preds, axis=0)
         P.save_npz(cfg.out_dir / "posterior_predictive.npz", ppc_draws=ppc, theta_sel=sel, times_days=pipe.times_days)
         P.save_npz(cfg.out_dir / "posterior_predictive_quantiles.npz",
