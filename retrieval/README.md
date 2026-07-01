@@ -28,7 +28,9 @@ retrieval/
 │   ├── make_dashboard.py  # one consolidated results figure
 │   ├── summarize_run.py   # data/ → RETRIEVAL_SUMMARY.md
 │   ├── coverage_study.py  # SBC / coverage (the "run N at once" workload)
-│   ├── run.sh             # SLURM/local launcher
+│   ├── run.sh             # SLURM/local launcher (JPL gattaca2)
+│   ├── run_nas.pbs        # PBS launcher (NASA NAS GH200 cluster)
+│   ├── full_retrieval.ipynb  # Colab launcher (same pipeline as run.sh, no SLURM/conda)
 │   ├── science.mplstyle   # publication style guide (applied to all plots)
 │   └── tests/             # pytest correctness suite
 ├── data/              # outputs: *.npz, config.json, logs, RETRIEVAL_SUMMARY.md
@@ -42,9 +44,11 @@ retrieval/
 | `scripts/plot_smc.py` | Reads `data/` and produces posterior / diagnostic / map figures into `plots/`. Never re-runs SWAMP. |
 | `scripts/make_dashboard.py` | One consolidated `results_dashboard.png` (fit + joint posterior + convergence + marginals + map). |
 | `scripts/summarize_run.py` | Human-readable recovery + correlation report (`data/RETRIEVAL_SUMMARY.md`). |
+| `scripts/run_nas.pbs` | PBS launcher for the NASA NAS GH200 cluster (`qsub retrieval/scripts/run_nas.pbs`). Installs deps `pip --user` into the shared read-only `pyt2_8_gh` env's user-site, same GPU-backend abort-on-CPU-fallback discipline as `run.sh`. |
 | `scripts/coverage_study.py` | Injection-recovery / Simulation-Based-Calibration over many truths — the rigorous calibration check, and the natural "run N at once" GPU/cluster workload (SLURM array). |
 | `scripts/tests/` | Pytest correctness suite for `pipeline.py` (forward parity, projector, u-space, prior, likelihood, gradient vs finite-difference, expanded-param path, end-to-end SMC). |
 | `scripts/run.sh` | SLURM/local launcher. |
+| `scripts/full_retrieval.ipynb` | Colab launcher — same `run_smc.py` → `plot_smc.py` → `make_dashboard.py` → `summarize_run.py` pipeline as `run.sh`, with a config form (preset/overrides), GPU/CPU-aware JAX install, inline figures, and a results-zip download. No SLURM/conda required. |
 | `scripts/science.mplstyle` | The project publication matplotlib style; `plot_smc.py` and `make_dashboard.py` apply it so retrieval figures match the paper figures. |
 
 ## Environment
@@ -60,6 +64,10 @@ the in-tree (current, differentiable, x64-aware) `my_swamp`, never a stale
 pip-installed copy.
 
 ## Quickstart
+
+No local GPU/conda env? Open `scripts/full_retrieval.ipynb` in Colab (clones this
+repo, installs deps, runs the same pipeline as `run.sh` below, displays figures
+inline): [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/imalsky/MY_SWAMP/blob/master/retrieval/scripts/full_retrieval.ipynb)
 
 ```bash
 cd retrieval/scripts
