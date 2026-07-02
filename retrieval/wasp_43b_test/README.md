@@ -84,6 +84,21 @@ plots/results_dashboard.png
 plots/corner_posterior.png
 ```
 
+## JPL Edge GPU Run (SLURM)
+
+Submit from the repo root:
+
+```bash
+sbatch retrieval/wasp_43b_test/run_slurm_wasp43b.sh
+```
+
+Same fetch/prepare + delegation pattern as the NAS launcher above, adapted for
+SLURM: it fetches/prepares data, then delegates to the shared
+`retrieval/scripts/run.sh` JAX/BlackJAX launcher with the same
+`SWAMP_RETRIEVAL_OVERRIDES_FILE` / `SWAMP_PLOT_OUT_DIR` / `SWAMP_PLOTS_DIR`
+overrides. No NAS proxy or `--user` installs are needed on this cluster.
+Expected outputs are the same as above.
+
 ## Model Configuration Notes
 
 - `a_planet_m` in the config is the **shallow-water sphere radius** (the planet
