@@ -206,7 +206,8 @@ def main() -> None:
     if cfg.run_inference:
         logger.info("Running BlackJAX adaptive tempered SMC...")
         t0 = time.perf_counter()
-        res = P.run_smc_loop(pipe, key=jax.random.PRNGKey(int(cfg.seed)), progress=True)
+        res = P.run_smc_loop(pipe, key=jax.random.PRNGKey(int(cfg.seed)), progress=True,
+                             checkpoint_path=cfg.out_dir / "smc_checkpoint.npz")
         logger.info(f"SMC finished in {(time.perf_counter()-t0)/60:.1f} min | reached_beta1={res['reached_beta1']} "
                     f"| n_temper={len(res['betas'])-1} | step_size={res['step_size_used']:.4g}")
         if not res["reached_beta1"]:

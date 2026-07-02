@@ -1273,10 +1273,13 @@ def build_smc_algorithm(pipe: Pipeline, *, step_size_override: Optional[float] =
         resampling_fn=resampling_fn, num_mcmc_steps=int(cfg.smc_num_mcmc_steps), target_ess=target_ess_frac)
 
 
-def run_smc_loop(pipe: Pipeline, *, key, progress: bool = True) -> Dict[str, Any]:
+def run_smc_loop(pipe: Pipeline, *, key, progress: bool = True,
+                 checkpoint_path: Optional[Path] = None) -> Dict[str, Any]:
     """Run adaptive-tempered SMC to beta=1; returns particles, weights, diagnostics, draws.
 
-    No file IO. Tuning (if enabled) happens here.
+    No file IO, except that ``checkpoint_path`` (if given) is atomically rewritten
+    after every tempering stage so a walltime kill loses at most one stage.
+    Tuning (if enabled) happens here.
     """
     cfg = pipe.cfg
     key, subkey = jax.random.split(key)
@@ -1341,8 +1344,22 @@ def run_smc_loop(pipe: Pipeline, *, key, progress: bool = True) -> Dict[str, Any
                     pass
         logz_inc_hist.append(logz_inc)
         if hasattr(iterator, "set_postfix"):
-            iterator.set_postfix(beta=f"{beta:.3f}", ess=f"{ess:.1f}", acc=f"{acc:.3f}")
-        logger.info(f"SMC step {i:03d}: beta={beta:.6f}, ESS={ess:.1f}/{cfg.smc_num_particles}, mean_accept={acc:.3f}")
+            iterator.set_postfix(beta=f"{beta:.2e}", ess=f"{ess:.1f}", acc=f"{acc:.3f}")
+        logger.info(f"SMC step {i:03d}: beta={beta:.3e}, ESS={ess:.1f}/{cfg.smc_num_particles}, mean_accept={acc:.3f}")
+        if checkpoint_path is not None:
+            theta_ckpt = jax.vmap(pipe.theta_from_u)(state.particles)
+            ckpt_tmp = checkpoint_path.with_suffix(".tmp.npz")
+            save_npz(ckpt_tmp,
+                     u_particles=np.asarray(jax.device_get(state.particles), dtype=np.float64),
+                     theta_particles=np.asarray(jax.device_get(theta_ckpt), dtype=np.float64),
+                     weights=np.asarray(jax.device_get(state.weights), dtype=np.float64),
+                     betas=np.asarray(betas, dtype=np.float64),
+                     ess=np.asarray(ess_hist, dtype=np.float64),
+                     acceptance_rate=np.asarray(acc_hist, dtype=np.float64),
+                     logZ_increment=np.asarray(logz_inc_hist, dtype=np.float64),
+                     step_size_used=np.asarray(step_used, dtype=np.float64),
+                     last_step=np.asarray(i, dtype=np.int64))
+            ckpt_tmp.replace(checkpoint_path)
         if beta >= 1.0 - 1e-8:
             break
 
