@@ -387,6 +387,15 @@ def test_planck_band_config_validation():
                                planck_band_weights=(0.6, 0.4)))
 
 
+def test_phi_to_temperature_accepts_sampled_phibar(pipe):
+    """When Phibar is inferred, the sampled value must reach the emission map
+    (T = (Phibar + phi)/R_d), not the frozen config value."""
+    phi = jnp.zeros((4, 8), pipe.dtype)
+    T_default = np.asarray(pipe.phi_to_temperature(phi))
+    T_shifted = np.asarray(pipe.phi_to_temperature(phi, Phibar=pipe.cfg.Phibar + 3.78e3 * 100.0))
+    assert np.allclose(T_shifted - T_default, 100.0, atol=1e-3)
+
+
 def test_noise_inflation_spec_is_last_and_scales_likelihood():
     cfg = P.fast_cpu_config(infer_noise_inflation=True)
     specs = P.specs_from_config(cfg)

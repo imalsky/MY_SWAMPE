@@ -603,14 +603,17 @@ def build_pipeline(cfg: Config) -> Pipeline:
     def _all_finite(x):
         return jnp.all(jnp.isfinite(x))
 
-    def phi_to_temperature(phi):
+    def phi_to_temperature(phi, Phibar=None):
+        # Phibar must be the SAME value the dynamics ran with: pass the sampled
+        # value when it is inferred (default: the fixed config value).
+        Phibar = cfg.Phibar if Phibar is None else Phibar
         phi = jnp.asarray(phi, dtype=dtype)
         finite_phi = _all_finite(phi)
 
         def _ok(_):
             if _temp_mode == "geopotential":
                 # paper / Perez-Becker 2013: T = (Phibar + Phi) / R_d
-                T = (jnp.asarray(cfg.Phibar, dtype=dtype) + phi) / jnp.asarray(cfg.R_d, dtype=dtype)
+                T = (jnp.asarray(Phibar, dtype=dtype) + phi) / jnp.asarray(cfg.R_d, dtype=dtype)
             else:
                 T = jnp.asarray(cfg.T_ref, dtype=dtype) + phi / jnp.asarray(cfg.phi_to_T_scale, dtype=dtype)
             return jnp.maximum(T, jnp.asarray(cfg.Tmin_K, dtype=dtype))
@@ -853,7 +856,7 @@ def build_pipeline(cfg: Config) -> Pipeline:
             return jnp.full((times_days_jax.shape[0],), jnp.asarray(jnp.nan, dtype=dtype), dtype=dtype)
 
         def _ok(_):
-            T = phi_to_temperature(phi)
+            T = phi_to_temperature(phi, Phibar=p["Phibar"])
             I_map = temperature_to_intensity(T)
             y_dense = intensity_map_to_y_dense(I_map)
             ylm = ylm_from_dense(y_dense, lm_list)
@@ -1011,7 +1014,7 @@ def build_pipeline(cfg: Config) -> Pipeline:
             DPhieq=jnp.asarray(p["DPhieq"], dtype=dtype), K6=jnp.asarray(p["K6"], dtype=dtype),
             K6Phi=k6phi_val, omega=jnp.asarray(p["omega_rad_s"], dtype=dtype),
             a=jnp.asarray(p["a_planet_m"], dtype=dtype), g=jnp.asarray(p["g_m_s2"], dtype=dtype))
-        T = phi_to_temperature(phi)
+        T = phi_to_temperature(phi, Phibar=p["Phibar"])
         I_map = temperature_to_intensity(T)
         y_dense = intensity_map_to_y_dense(I_map)
         return {"phi": np.asarray(phi), "T": np.asarray(T), "I": np.asarray(I_map), "y_dense": np.asarray(y_dense)}

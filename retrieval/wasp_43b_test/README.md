@@ -90,16 +90,21 @@ plots/corner_posterior.png
   radius, 1.006 Rjup = 7.192e7 m), *not* the orbital semi-major axis — jaxoplanet
   derives the orbit from `star_mass_msun` + the orbital period (giving
   a/R* = 4.98, vs Esposito et al.'s 4.97 +/- 0.14).
-- `Phibar = 4.0e6 m^2/s^2` is the Perez-Becker & Showman 2013 standard mean
-  geopotential gH (gravity-wave speed ~2 km/s), giving a mean brightness
-  temperature `T = Phibar/R_d ~ 1058 K`; `DPhieq = 3.5e6` puts the substellar
-  radiative-equilibrium temperature at ~1984 K (~T_* sqrt(R*/a)) with
-  `DPhieq/Phibar = 0.875`, inside the PBS13 forcing range. The resulting map
-  temperatures (~1050-1980 K) make the Planck emission model operate in the
-  physically relevant regime for this planet.
-- The retrieval infers `tau_rad`, `tau_drag`, `F_p/F_s`, and a multiplicative
-  noise-inflation factor (sigma scale). Timescale priors are log-uniform over
-  0.5-48 h; the 20-day spin-up is >= 10 tau_drag over the full prior range.
+- The retrieval infers six parameters: `tau_rad`, `tau_drag`, `F_p/F_s`,
+  `Phibar`, `DPhieq`, and a multiplicative noise-inflation factor (sigma
+  scale). Everything constrained by *independent* measurements (ephemeris,
+  stellar/planet radii and masses, impact parameter) is fixed; everything
+  constrained only by this dataset is inferred. Timescale priors are
+  log-uniform over 0.5-48 h (the 20-day spin-up is >= 10 tau_drag across the
+  prior); `Phibar` is log-uniform over 2e6-8e6 m^2/s^2 (mean brightness
+  temperature Phibar/R_d ~ 530-2100 K, bracketing the PBS13 standard gH=4e6)
+  and `DPhieq` log-uniform over 5e5-5e6. The config's point values for
+  Phibar/DPhieq are initialization only.
+- Because Phibar sets the day-night flux-ratio curvature (via the Planck
+  function at T = (Phibar+Phi)/R_d) *and* the gravity-wave speed, and DPhieq
+  sets the forcing amplitude, inferring them removes the two strongest
+  model-conditioning assumptions from the tau posteriors (at the cost of the
+  expected amplitude degeneracies, which the corner plot shows honestly).
 - Solver: `dt = 120 s`, `K6 = 5e33`. The Phibar=4e6 regime has ~3.7x faster
   gravity waves than the synthetic default (Phibar=3e5, dt=240, K6=1.24e33), so
   the hyperdiffusion is rescaled with the wave speed and dt halved. Verified
