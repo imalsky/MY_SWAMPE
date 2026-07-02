@@ -100,9 +100,24 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
-    """Fetch metadata and optionally the archive."""
+    """Fetch metadata and optionally the archive.
+
+    Offline-tolerant: when the archive is already on disk and the Zenodo API is
+    unreachable (e.g. a cluster compute node without working egress), keep the
+    existing archive + provenance and exit 0 instead of failing the job.
+    """
     args = parse_args()
-    record = fetch_json(ZENODO_API_URL)
+    try:
+        record = fetch_json(ZENODO_API_URL)
+    except Exception as exc:
+        if args.output.exists() and not args.force:
+            print(f"[offline: Zenodo API unreachable ({exc!r}); using existing {args.output}]")
+            print(f"[sha256 {sha256_file(args.output)}]")
+            return
+        raise RuntimeError(
+            f"Zenodo API unreachable and {args.output} does not exist. "
+            "Run this script once on a machine with internet access (e.g. a login node)."
+        ) from exc
     archive_url = zenodo_archive_url(record)
 
     if args.metadata_only:

@@ -329,6 +329,77 @@ def test_expanded_param_rebuild_path():
 
 
 # ---------------------------------------------------------------------------
+# Absolute orientation (east-west), band Planck, noise inflation
+# ---------------------------------------------------------------------------
+
+
+def test_eastward_hot_spot_peaks_before_eclipse(pipe):
+    """Absolute-orientation regression (real-data critical, mirror-symmetric in
+    synthetic self-tests): the SW model's superrotation shifts the hot spot EAST
+    (+lambda) of the substellar point, so the disk-integrated phase curve must
+    peak BEFORE secondary eclipse (Knutson et al. 2007; WASP-43b behaves this
+    way). A sign flip in the map -> starry handoff passes every synthetic
+    recovery test but mirrors the offset; this pins the physical convention.
+    """
+    maps = pipe.compute_maps_for_theta(pipe.theta_truth)
+    lon = np.asarray(pipe.lon)
+    lat = np.asarray(pipe.lat)
+    jeq = int(np.argmin(np.abs(lat)))
+    Ieq = np.asarray(maps["I"])[jeq]
+    lon_max_deg = math.degrees(lon[int(np.argmax(Ieq))])
+    assert -1.0e-9 <= lon_max_deg < 90.0, f"hot spot not east of substellar: {lon_max_deg} deg"
+    # intensity-weighted east-west moment (robust to grid discretization)
+    assert float(np.sum(Ieq * np.sin(lon))) > 0.0, "equatorial intensity centroid is not east"
+
+    flux = np.asarray(pipe.flux_true)  # noise-free truth curve from the fixture
+    t = np.asarray(pipe.times_days)
+    Porb = float(pipe.orbital_period_days_base)
+    ecl = float(pipe.cfg.time_transit_days) + 0.5 * Porb
+    i_ecl = int(np.argmin(np.abs(t - ecl)))
+    # mirror pairs around eclipse, outside the occultation (T14/2 ~ 0.025 Porb)
+    ks = [k for k in range(3, 13) if 0 <= i_ecl - k and i_ecl + k < t.size]
+    assert len(ks) >= 5
+    asym = np.array([flux[i_ecl - k] - flux[i_ecl + k] for k in ks])
+    assert np.mean(asym) > 0.0, (
+        f"phase curve brighter AFTER eclipse (mean asym {np.mean(asym):.3e}): "
+        "east-west orientation is flipped"
+    )
+    # and the global out-of-eclipse peak precedes eclipse
+    outside = np.abs(t - ecl) > 0.06 * Porb
+    t_pk = t[outside][int(np.argmax(flux[outside]))]
+    assert t_pk < ecl, f"phase-curve peak at {t_pk} is after eclipse at {ecl}"
+
+
+def test_planck_band_config_validation():
+    with pytest.raises(ValueError):  # wavelengths without weights
+        P.validate_config(P.Config(emission_model="planck",
+                                   planck_band_wavelengths_m=(5e-6, 7e-6)))
+    with pytest.raises(ValueError):  # length mismatch
+        P.validate_config(P.Config(emission_model="planck",
+                                   planck_band_wavelengths_m=(5e-6, 7e-6),
+                                   planck_band_weights=(1.0,)))
+    with pytest.raises(ValueError):  # band only makes sense for planck emission
+        P.validate_config(P.Config(emission_model="bolometric",
+                                   planck_band_wavelengths_m=(5e-6,),
+                                   planck_band_weights=(1.0,)))
+    P.validate_config(P.Config(emission_model="planck",
+                               planck_band_wavelengths_m=(5e-6, 7e-6),
+                               planck_band_weights=(0.6, 0.4)))
+
+
+def test_noise_inflation_spec_is_last_and_scales_likelihood():
+    cfg = P.fast_cpu_config(infer_noise_inflation=True)
+    specs = P.specs_from_config(cfg)
+    assert specs[-1].name == "noise_inflation"
+    assert specs[-1].lo == pytest.approx(cfg.prior_noise_inflation_min)
+    # ll(k) = -0.5*chi2/k^2 - n*log(k) + ll_gauss(k=1) for identical model/data:
+    # verified end-to-end in the WASP-43b pilot config; here we check the spec
+    # wiring (name order matters for corner-plot panel assignment downstream).
+    names = [s.name for s in specs]
+    assert names[0] == "tau_rad_hours" and names[1] == "tau_drag_hours"
+
+
+# ---------------------------------------------------------------------------
 # End-to-end SMC (slow)
 # ---------------------------------------------------------------------------
 

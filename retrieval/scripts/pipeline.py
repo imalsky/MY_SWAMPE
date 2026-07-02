@@ -73,7 +73,11 @@ from jaxoplanet.starry.ylm import Ylm
 
 logger = logging.getLogger("swamp_retrieval")
 
-RJUP_TO_RSUN = 0.10045
+# IAU nominal equatorial R_Jup (7.1492e7 m) / nominal R_sun (6.957e8 m).
+# Catalog planet radii (e.g. Esposito et al. 2017's 1.006 Rjup for WASP-43b) are
+# quoted in equatorial Rjup; using the volumetric-mean ratio (0.10045) here would
+# understate Rp/R* (and the eclipse ingress/egress durations) by ~2.3%.
+RJUP_TO_RSUN = 7.1492e7 / 6.957e8
 
 
 # =============================================================================
@@ -141,6 +145,15 @@ class Config:
     emission_model: str = "bolometric"
     planck_wavelength_m: float = 4.5e-6
     planck_x_clip: float = 80.0
+    # Band-integrated Planck (emission_model="planck" only): per-channel
+    # wavelengths + weights for a broadband light curve assembled from several
+    # spectroscopic channels. The map intensity becomes
+    #   I(T) = sum_c w_c / expm1(h c / (lambda_c k_B T)).
+    # This is the correct *relative* planet-signal shape when the weights fold in
+    # the per-channel stellar Planck correction, w_c ∝ w_c^data * expm1(x_c(T_star)):
+    # the lambda^-5 prefactors cancel in Fp/Fs. None -> single-wavelength Planck.
+    planck_band_wavelengths_m: Optional[Tuple[float, ...]] = None
+    planck_band_weights: Optional[Tuple[float, ...]] = None
 
     # starry / map projection
     ydeg: int = 10
@@ -188,6 +201,12 @@ class Config:
     infer_omega: bool = False
     infer_a_planet: bool = False
     infer_g: bool = False
+    # Multiplicative per-point noise inflation k (sigma_eff = k * sigma). Inferring
+    # it lets the data calibrate underestimated / red-noise-contaminated error bars
+    # (standard practice for real light curves, cf. Bell et al. 2024's per-curve
+    # scatter multiplier). Affects only the likelihood, not the forward model.
+    infer_noise_inflation: bool = False
+    noise_inflation: float = 1.0
 
     # Priors
     # Timescales span >1 decade; log-uniform is the standard scale-parameter prior
@@ -217,6 +236,8 @@ class Config:
     prior_a_planet_max: float = 2.0e8
     prior_g_min: float = 1.0
     prior_g_max: float = 40.0
+    prior_noise_inflation_min: float = 0.5
+    prior_noise_inflation_max: float = 5.0
 
     prior_type_planet_radius: str = "uniform"
     prior_type_planet_fpfs: str = "log10_uniform"
@@ -227,6 +248,7 @@ class Config:
     prior_type_omega: str = "log10_uniform"
     prior_type_a_planet: str = "log10_uniform"
     prior_type_g: str = "log10_uniform"
+    prior_type_noise_inflation: str = "log10_uniform"
 
     # Inference: BlackJAX Adaptive Tempered SMC
     run_inference: bool = True
@@ -310,6 +332,19 @@ def validate_config(cfg: Config) -> None:
             raise ValueError("cfg.observation_times_days contains non-finite values.")
         if np.any(np.diff(times) < 0.0):
             raise ValueError("cfg.observation_times_days must be monotonic increasing.")
+    if (cfg.planck_band_wavelengths_m is None) != (cfg.planck_band_weights is None):
+        raise ValueError("planck_band_wavelengths_m and planck_band_weights must be set together.")
+    if cfg.planck_band_wavelengths_m is not None:
+        if str(cfg.emission_model).strip().lower() != "planck":
+            raise ValueError("planck_band_* requires emission_model='planck'.")
+        wl = np.asarray(cfg.planck_band_wavelengths_m, dtype=np.float64).reshape(-1)
+        w = np.asarray(cfg.planck_band_weights, dtype=np.float64).reshape(-1)
+        if wl.size == 0 or wl.size != w.size:
+            raise ValueError("planck_band_wavelengths_m and planck_band_weights must be equal-length and non-empty.")
+        if not (np.all(np.isfinite(wl)) and np.all(wl > 0.0)):
+            raise ValueError("planck_band_wavelengths_m must be finite and positive (meters).")
+        if not (np.all(np.isfinite(w)) and np.all(w > 0.0)):
+            raise ValueError("planck_band_weights must be finite and positive.")
 
 
 # =============================================================================
@@ -439,6 +474,10 @@ def specs_from_config(cfg: Config) -> List[ParamSpec]:
     if cfg.infer_g:
         add("g_m_s2", "g [m/s^2]", str(cfg.prior_type_g).strip().lower(),
             float(cfg.prior_g_min), float(cfg.prior_g_max), float(cfg.g_m_s2))
+    if cfg.infer_noise_inflation:
+        add("noise_inflation", "sigma scale", str(cfg.prior_type_noise_inflation).strip().lower(),
+            float(cfg.prior_noise_inflation_min), float(cfg.prior_noise_inflation_max),
+            float(cfg.noise_inflation))
 
     if len(specs) == 0:
         raise ValueError("No parameters enabled for inference. Set at least one cfg.infer_* = True.")
@@ -601,11 +640,23 @@ def build_pipeline(cfg: Config) -> Pipeline:
         return jax.lax.cond(finite_T, _ok, _bad, operand=None)
 
     emission_mode = str(cfg.emission_model).strip().lower()
+    if cfg.planck_band_wavelengths_m is not None:
+        _band_wl = [float(x) for x in np.asarray(cfg.planck_band_wavelengths_m, dtype=np.float64).reshape(-1)]
+        _band_w = np.asarray(cfg.planck_band_weights, dtype=np.float64).reshape(-1)
+        _band_w = _band_w / np.sum(_band_w)
+    else:
+        _band_wl, _band_w = None, None
 
     def temperature_to_intensity(T):
         if emission_mode == "bolometric":
             return jnp.asarray(T, dtype=dtype) ** 4
         if emission_mode == "planck":
+            if _band_wl is not None:
+                T = jnp.asarray(T, dtype=dtype)
+                out = jnp.zeros_like(T)
+                for wgt, lam in zip(_band_w, _band_wl):
+                    out = out + jnp.asarray(wgt, dtype=dtype) * planck_intensity_relative_lambda(T, lam)
+                return out
             return planck_intensity_relative_lambda(jnp.asarray(T, dtype=dtype), float(cfg.planck_wavelength_m))
         raise ValueError(f"Unknown cfg.emission_model={cfg.emission_model!r}.")
 
@@ -810,9 +861,17 @@ def build_pipeline(cfg: Config) -> Pipeline:
                 orbital_period_days = jnp.asarray(cfg.orbital_period_override_days, dtype=dtype)
             else:
                 orbital_period_days = jnp.asarray(orbital_period_days_from_omega(p["omega_rad_s"]), dtype=dtype)
+            # Rotation-direction convention: jaxoplanet's rotational_phase(t) is
+            # phase + 2*pi*t/period (sub-observer longitude INCREASES with time),
+            # but for a tidally locked prograde planet the sub-observer longitude
+            # DECREASES with time: an eastward (+lambda) hot spot must face the
+            # observer BEFORE secondary eclipse (Knutson et al. 2007). The negative
+            # rotation period runs the map the physical way while phase=pi still
+            # centers the nightside (lambda=pi) at transit and the substellar
+            # point (lambda=0) at eclipse.
             planet_surface = Surface(
                 y=ylm, u=(), inc=jnp.asarray(cfg.map_inc_rad, dtype=dtype),
-                obl=jnp.asarray(cfg.map_obl_rad, dtype=dtype), period=orbital_period_days,
+                obl=jnp.asarray(cfg.map_obl_rad, dtype=dtype), period=-orbital_period_days,
                 phase=jnp.asarray(cfg.phase_at_transit_rad, dtype=dtype),
                 amplitude=jnp.asarray(p["planet_fpfs"], dtype=dtype), normalize=False)
             planet = Body(
@@ -878,14 +937,22 @@ def build_pipeline(cfg: Config) -> Pipeline:
 
     observed_flux_model_jit = jax.jit(observed_flux_model)
 
+    _noise_idx = param_names.index("noise_inflation") if "noise_inflation" in param_names else None
+
     def log_likelihood_u(u):
         theta = theta_from_u(u)
         mu_model = observed_flux_model_jit(theta)
         finite = jnp.all(jnp.isfinite(mu_model))
         flux_obs_jax = pipe.flux_obs_jax
         # Per-point sigma: scalar (white) or vector (heteroscedastic photon noise),
-        # broadcast to the data shape so the same code path handles both.
+        # broadcast to the data shape so the same code path handles both. A free
+        # noise-inflation parameter k multiplies every sigma; the -sum(log sig)
+        # term below then correctly penalizes large k.
         sig = jnp.broadcast_to(pipe.obs_sigma_jax, mu_model.shape)
+        if _noise_idx is not None:
+            sig = sig * theta[_noise_idx]
+        elif float(cfg.noise_inflation) != 1.0:
+            sig = sig * jnp.asarray(cfg.noise_inflation, dtype=dtype)
 
         def _ok():
             resid = (flux_obs_jax - mu_model) / sig

@@ -159,7 +159,7 @@ def main():
     names = [str(x) for x in samps["param_names"].tolist()]
     labels = [str(x) for x in samps["param_labels"].tolist()] if "param_labels" in samps.files else names
     S = np.asarray(samps["samples"]).reshape(-1, len(names))
-    truth = np.asarray(cfg.get("inferred_param_truth"), float)
+    truth = np.asarray(cfg.get("inferred_param_truth") or [np.nan] * len(names), float)
     plo = np.asarray(cfg.get("inferred_param_prior_lo"), float)
     phi_ = np.asarray(cfg.get("inferred_param_prior_hi"), float)
     ptypes = [str(x) for x in cfg.get("inferred_param_prior_types", [])]
@@ -245,8 +245,9 @@ def main():
             ax.scatter(x, y, s=6, alpha=0.35, color="0.25")
         else:
             ax.scatter(x, y, s=6, alpha=0.35, color="0.25")
-        ax.axvline(truth[0], color=COLOR_TRUTH, ls="--", lw=1); ax.axhline(truth[1], color=COLOR_TRUTH, ls="--", lw=1)
-        ax.plot(truth[0], truth[1], "*", ms=16, color=COLOR_TRUTH, label="truth")
+        if truth.size >= 2 and np.isfinite(truth[:2]).all():
+            ax.axvline(truth[0], color=COLOR_TRUTH, ls="--", lw=1); ax.axhline(truth[1], color=COLOR_TRUTH, ls="--", lw=1)
+            ax.plot(truth[0], truth[1], "*", ms=16, color=COLOR_TRUTH, label="truth")
         if display_log_x:
             ax.set_xscale("log")
         if display_log_y:
@@ -297,7 +298,8 @@ def main():
                 ax.plot(xs, ys, color=COLOR_POSTERIOR, lw=2)
             except Exception:
                 pass
-        ax.axvline(truth[i], color=COLOR_TRUTH, lw=2, label=f"truth = {truth[i]:.1f}")
+        if truth.size > i and np.isfinite(truth[i]):
+            ax.axvline(truth[i], color=COLOR_TRUTH, lw=2, label=f"truth = {truth[i]:.1f}")
         q = np.percentile(v, [5, 50, 95])
         ax.axvspan(q[0], q[2], alpha=0.12, color=COLOR_POSTERIOR)
         ax.axvline(q[1], color=COLOR_POSTERIOR, ls="--", lw=1.5, label=f"median = {q[1]:.2f}")
@@ -313,15 +315,21 @@ def main():
         ax.set_xlabel(labels[i]); ax.set_title(f"({'d' if i==0 else 'e'}) {labels[i]} posterior")
         ax.legend(fontsize=8); ax.set_yticks([])
 
-    # (f) terminal brightness-temperature map (truth)
+    # (f) terminal brightness-temperature map (truth if injected, else posterior median)
     ax = fig.add_subplot(gs[1, 2])
-    if maps is not None and "T_truth" in maps.files:
+    map_key, map_label = None, None
+    if maps is not None:
+        if "T_truth" in maps.files and np.isfinite(np.asarray(maps["T_truth"])).any():
+            map_key, map_label = "T_truth", "truth"
+        elif "T_post" in maps.files and np.isfinite(np.asarray(maps["T_post"])).any():
+            map_key, map_label = "T_post", "posterior median"
+    if map_key is not None:
         lon = np.degrees(np.asarray(maps["lon"])); lat = np.degrees(np.asarray(maps["lat"]))
-        T = np.asarray(maps["T_truth"])
+        T = np.asarray(maps[map_key])
         im = ax.pcolormesh(lon, lat, T, shading="auto", cmap="inferno")
         fig.colorbar(im, ax=ax, label="T [K]")
         ax.set_xlabel("longitude [deg]"); ax.set_ylabel("latitude [deg]")
-        ax.set_title("(f) terminal brightness-T map (truth)")
+        ax.set_title(f"(f) terminal brightness-T map ({map_label})")
     else:
         ax.set_title("(f) maps unavailable")
 

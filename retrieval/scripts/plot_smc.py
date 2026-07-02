@@ -1171,6 +1171,13 @@ def plot_maps() -> None:
         if mode == "bolometric":
             return f"{base} (I ∝ T^4)"
         if mode == "planck":
+            band = cfg.get("planck_band_wavelengths_m", None)
+            if band:
+                try:
+                    lam_lo, lam_hi = 1e6 * float(min(band)), 1e6 * float(max(band))
+                    return f"{base} (I ∝ Σ w B_λ[T], {lam_lo:.3g}-{lam_hi:.3g} µm)"
+                except Exception:
+                    return f"{base} (I ∝ Σ w B_λ[T])"
             lam_m = cfg.get("planck_wavelength_m", None)
             if lam_m is None:
                 return f"{base} (I ∝ B_λ[T])"
@@ -1181,13 +1188,19 @@ def plot_maps() -> None:
                 return f"{base} (I ∝ B_λ[T])"
         return f"{base} (I; emission_model={mode})"
 
-    fig, axs = plt.subplots(2, 3, figsize=(14, 7), constrained_layout=True)
-    _pcolormesh(axs[0, 0], lon, lat, np.asarray(maps["phi_truth"]), "Phi truth")
-    _pcolormesh(axs[0, 1], lon, lat, np.asarray(maps["T_truth"]), "T truth [K]")
-    _pcolormesh(axs[0, 2], lon, lat, np.asarray(maps["I_truth"]), intensity_title("I truth"))
-    _pcolormesh(axs[1, 0], lon, lat, np.asarray(maps["phi_post"]), "Phi posterior median")
-    _pcolormesh(axs[1, 1], lon, lat, np.asarray(maps["T_post"]), "T posterior median [K]")
-    _pcolormesh(axs[1, 2], lon, lat, np.asarray(maps["I_post"]), intensity_title("I posterior median"))
+    has_truth_maps = bool(np.isfinite(np.asarray(maps["phi_truth"])).any())
+    if has_truth_maps:
+        fig, axs = plt.subplots(2, 3, figsize=(14, 7), constrained_layout=True)
+        _pcolormesh(axs[0, 0], lon, lat, np.asarray(maps["phi_truth"]), "Phi truth")
+        _pcolormesh(axs[0, 1], lon, lat, np.asarray(maps["T_truth"]), "T truth [K]")
+        _pcolormesh(axs[0, 2], lon, lat, np.asarray(maps["I_truth"]), intensity_title("I truth"))
+        post_axs = axs[1]
+    else:
+        # Real-data run: no injected truth maps, show the posterior row only.
+        fig, post_axs = plt.subplots(1, 3, figsize=(14, 3.7), constrained_layout=True)
+    _pcolormesh(post_axs[0], lon, lat, np.asarray(maps["phi_post"]), "Phi posterior median")
+    _pcolormesh(post_axs[1], lon, lat, np.asarray(maps["T_post"]), "T posterior median [K]")
+    _pcolormesh(post_axs[2], lon, lat, np.asarray(maps["I_post"]), intensity_title("I posterior median"))
     fig.suptitle("Terminal SWAMP maps and intensity proxy")
     path = PLOTS_DIR / "maps.png"
     fig.savefig(path)
@@ -1269,7 +1282,10 @@ def plot_disk_renders() -> None:
             axs = [axs]
         for ax, ph in zip(axs, render_phases):
             t = time_transit + ph * orbital_period_days
-            theta = 2.0 * math.pi * (t - time_transit) / orbital_period_days + phase0
+            # Matches the pipeline's rotation convention (negative Surface period):
+            # the sub-observer longitude DECREASES with time for a tidally locked
+            # prograde planet, so an eastward hot spot faces us before eclipse.
+            theta = phase0 - 2.0 * math.pi * (t - time_transit) / orbital_period_days
             img = safe_render(surface, theta, render_res)
             ax.imshow(img, origin="lower")
             ax.set_title(f"{label}\nphase={ph:.2f}")
@@ -1279,7 +1295,11 @@ def plot_disk_renders() -> None:
         plt.close(fig)
         logger.info(f"Saved {path}")
 
-    render_grid(np.asarray(maps["y_truth"]), "Truth", "disk_renders_truth.png")
+    y_truth = np.asarray(maps["y_truth"])
+    if np.isfinite(y_truth).all():
+        render_grid(y_truth, "Truth", "disk_renders_truth.png")
+    else:
+        logger.info("y_truth is NaN (real-data run); skipping truth disk renders.")
     render_grid(np.asarray(maps["y_post"]), "Posterior median", "disk_renders_posterior.png")
 
 

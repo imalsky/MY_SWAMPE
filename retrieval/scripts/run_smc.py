@@ -77,6 +77,8 @@ def make_config() -> P.Config:
     ov = os.environ.get("SWAMP_RETRIEVAL_OVERRIDES", "").strip()
     if ov:
         overrides.update(json.loads(ov))
+    # keys starting with "_" are comments (e.g. "_comment_provenance"), not Config fields
+    overrides = {k: v for k, v in overrides.items() if not k.startswith("_")}
     if overrides:
         if "out_dir" in overrides:
             out_dir = Path(overrides["out_dir"])
@@ -88,19 +90,37 @@ def make_config() -> P.Config:
 
 
 def preload_real_observation_times(cfg: P.Config) -> P.Config:
-    """Inject saved real-data times before building the JAX light-curve model."""
-    if cfg.generate_synthetic_data or cfg.observation_times_days is not None:
+    """Inject saved real-data times (and Planck band arrays, if the preparation
+    wrote them) before building the JAX light-curve model."""
+    if cfg.generate_synthetic_data:
         return cfg
 
     obs_path = cfg.out_dir / "observations.npz"
     if not obs_path.exists():
         return cfg
 
+    updates: Dict[str, Any] = {}
     with np.load(obs_path, allow_pickle=True) as obs:
-        if "times_days" not in obs.files:
-            return cfg
-        times_days = np.asarray(obs["times_days"], dtype=np.float64).reshape(-1)
-    return replace(cfg, observation_times_days=tuple(float(x) for x in times_days), n_times=int(times_days.size))
+        if cfg.observation_times_days is None and "times_days" in obs.files:
+            times_days = np.asarray(obs["times_days"], dtype=np.float64).reshape(-1)
+            updates.update(observation_times_days=tuple(float(x) for x in times_days),
+                           n_times=int(times_days.size))
+        if (cfg.planck_band_wavelengths_m is None
+                and str(cfg.emission_model).strip().lower() == "planck"
+                and "band_wavelengths_um" in obs.files and "band_weights" in obs.files):
+            wl_um = np.asarray(obs["band_wavelengths_um"], dtype=np.float64).reshape(-1)
+            wts = np.asarray(obs["band_weights"], dtype=np.float64).reshape(-1)
+            updates.update(planck_band_wavelengths_m=tuple(float(x) * 1.0e-6 for x in wl_um),
+                           planck_band_weights=tuple(float(x) for x in wts))
+    return replace(cfg, **updates) if updates else cfg
+
+
+def output_truth(cfg: P.Config, pipe: P.Pipeline) -> np.ndarray:
+    """Truth vector for output files: real values for synthetic runs, NaN for real
+    data (where cfg's *_true fields are initialization placeholders, not truths)."""
+    if cfg.generate_synthetic_data:
+        return np.asarray(pipe.param_truth, dtype=np.float64)
+    return np.full(pipe.n_dim, np.nan, dtype=np.float64)
 
 
 def write_config_json(cfg: P.Config, pipe: P.Pipeline) -> None:
@@ -112,7 +132,7 @@ def write_config_json(cfg: P.Config, pipe: P.Pipeline) -> None:
         inferred_param_prior_types=[s.prior_type for s in pipe.specs],
         inferred_param_prior_lo=pipe.param_prior_lo.tolist(),
         inferred_param_prior_hi=pipe.param_prior_hi.tolist(),
-        inferred_param_truth=pipe.param_truth.tolist(),
+        inferred_param_truth=output_truth(cfg, pipe).tolist(),
     ))
     (cfg.out_dir / "config.json").write_text(json.dumps(cfg_dict, indent=2, default=str))
 
@@ -215,17 +235,21 @@ def main() -> None:
                    smc_logZ_increment=logz_inc, smc_logZ=logz,
                    smc_final_weights=res["final_weights"],
                    inferred_param_names=np.asarray(pipe.param_names, dtype="<U64"),
-                   inferred_param_truth=np.asarray(pipe.param_truth, dtype=np.float64))
+                   inferred_param_truth=output_truth(cfg, pipe))
         logger.info(f"Saved SMC diagnostics to: {extra_path}")
 
-        # console recovery summary
+        # console recovery summary (truth comparison only for synthetic injections)
         theta = res["theta_draws"].reshape(-1, pipe.n_dim)
-        truth = np.asarray(pipe.theta_truth)
-        logger.info("Recovery (median [5%,95%], truth):")
+        truth = output_truth(cfg, pipe)
+        logger.info("Posterior (median [5%,95%]):" if not cfg.generate_synthetic_data
+                    else "Recovery (median [5%,95%], truth):")
         for i, name in enumerate(pipe.param_names):
             q = np.percentile(theta[:, i], [5, 50, 95])
-            inside = "in" if q[0] <= truth[i] <= q[2] else "OUT"
-            logger.info(f"  {name:16s} {q[1]:9.3f} [{q[0]:8.3f},{q[2]:8.3f}]  truth={truth[i]:9.3f}  ({inside} 90% CI)")
+            msg = f"  {name:16s} {q[1]:9.3f} [{q[0]:8.3f},{q[2]:8.3f}]"
+            if np.isfinite(truth[i]):
+                inside = "in" if q[0] <= truth[i] <= q[2] else "OUT"
+                msg += f"  truth={truth[i]:9.3f}  ({inside} 90% CI)"
+            logger.info(msg)
     else:
         if not samples_path.exists():
             logger.info("run_inference=False and no posterior_samples.npz exists; stopping after build/observation smoke.")
@@ -255,16 +279,20 @@ def main() -> None:
     # ---- truth + posterior-median maps (so plotting never reruns SWAMP) ----
     logger.info("Computing truth + posterior-median terminal maps...")
     import jax.numpy as jnp
-    truth_maps = pipe.compute_maps_for_theta(pipe.theta_truth)
     s = np.load(samples_path)
     theta_median = np.median(np.asarray(s["samples"]).reshape(-1, pipe.n_dim), axis=0).astype(pipe.npdtype)
     post_maps = pipe.compute_maps_for_theta(jnp.asarray(theta_median, pipe.dtype))
+    if cfg.generate_synthetic_data:
+        truth_maps = pipe.compute_maps_for_theta(pipe.theta_truth)
+    else:
+        # Real data: there is no injected truth; keep the schema but store NaNs.
+        truth_maps = {k: np.full_like(np.asarray(v), np.nan) for k, v in post_maps.items()}
     P.save_npz(cfg.out_dir / "maps_truth_and_posterior_summary.npz",
                lon=np.asarray(pipe.lon), lat=np.asarray(pipe.lat),
                phi_truth=truth_maps["phi"], T_truth=truth_maps["T"], I_truth=truth_maps["I"], y_truth=truth_maps["y_dense"],
                phi_post=post_maps["phi"], T_post=post_maps["T"], I_post=post_maps["I"], y_post=post_maps["y_dense"],
                inferred_param_names=np.asarray(pipe.param_names, dtype="<U64"),
-               inferred_param_truth=np.asarray(pipe.param_truth, dtype=np.float64),
+               inferred_param_truth=output_truth(cfg, pipe),
                inferred_param_post_median=np.asarray(theta_median, dtype=np.float64))
     logger.info("Saved truth + posterior-median maps. DONE.")
 

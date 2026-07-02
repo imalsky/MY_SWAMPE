@@ -20,15 +20,29 @@ DEFAULT_H5_IN_ARCHIVE = "WASP43b_MIRI_Data/1_Light_Curves/eureka_v1.h5"
 DEFAULT_OUTPUT = SUITE_ROOT / "outputs" / "observations.npz"
 PROVENANCE_DIR = SUITE_ROOT / "data" / "provenance"
 
-PERIOD_DAYS = 0.813475
-TRANSIT_EPOCH_BJD_TDB = 2455528.867740
+# Linear ephemeris from Ivshina & Winn 2022 (ApJS 259, 62), BJD_TDB. Predicted
+# transit during the JWST visit: BJD_TDB 2459915.12067 (ExoClock agrees to 16 s).
+# Do NOT use the Hellier et al. 2011 discovery ephemeris (P=0.813475,
+# T0=2455528.86774): propagated to the JWST epoch it lands ~6 min late
+# (~1.9 deg of orbital phase), and its epoch is tabulated in HJD, not BJD_TDB.
+PERIOD_DAYS = 0.813474037
+TRANSIT_EPOCH_BJD_TDB = 2457423.449697
 TRANSIT_EPOCH_MJD = TRANSIT_EPOCH_BJD_TDB - 2400000.5
 WAVELENGTH_MIN_UM = 5.0
 WAVELENGTH_MAX_UM = 10.5
 RAMP_INTEGRATIONS = 779
+# Bell et al. 2024's broadband fits found scatter ~1.25x the estimated photon
+# noise ("scatter_multi"); we inflate the binned errors by the same factor. The
+# retrieval additionally infers a free noise-inflation parameter on top of this.
 ERROR_INFLATION = 1.25
 PRIMARY_TRANSIT_HALF_WIDTH_DAYS = 0.06
 TARGET_BINS = 320
+# Stellar effective temperature for the per-channel stellar-Planck correction of
+# the band weights (Bonomo et al. 2017, as adopted by Bell et al. 2024).
+T_STAR_K = 4400.0
+H_PLANCK = 6.62607015e-34
+C_LIGHT = 299792458.0
+K_BOLTZ = 1.380649e-23
 
 
 def read_h5_bytes(input_path: Path, member: str = DEFAULT_H5_IN_ARCHIVE) -> bytes:
@@ -94,6 +108,40 @@ def combine_spectral_channels(
     return combined_flux, combined_err, channel_sel
 
 
+def band_model_weights(
+    err: np.ndarray,
+    mask: np.ndarray,
+    wavelength_um: np.ndarray,
+    channel_sel: np.ndarray,
+    *,
+    t_star_k: float = T_STAR_K,
+) -> Tuple[np.ndarray, np.ndarray, float]:
+    """Per-channel weights for the retrieval's band-integrated Planck model.
+
+    The combined light curve is an inverse-variance-weighted mean of per-channel
+    *relative* (median-normalized) fluxes, so its planet signal is
+    sum_c w_c * Fp_c/Fs_c with w_c the data weights. Since
+    Fp_c/Fs_c ∝ expm1(x_c(T_star)) / expm1(x_c(T_planet)) (the lambda^-5 Planck
+    prefactors cancel in the ratio), the model must weight channel c by
+    w_c * expm1(h c / (lambda_c k_B T_star)). Returns (wavelengths_um,
+    normalized model weights, effective wavelength of the data weights).
+    """
+    wl_sel = np.asarray(wavelength_um[channel_sel], dtype=np.float64)
+    err_sel = np.asarray(err[channel_sel], dtype=np.float64)
+    mask_sel = np.asarray(mask[channel_sel], dtype=bool)
+    valid = np.isfinite(err_sel) & (err_sel > 0.0) & (~mask_sel)
+    inv_var = np.where(valid, 1.0 / np.square(err_sel), np.nan)
+    w_data = np.nanmedian(inv_var, axis=1)
+    if not (np.all(np.isfinite(w_data)) and np.all(w_data > 0.0)):
+        raise ValueError("Per-channel data weights are not all finite and positive.")
+    lam_m = wl_sel * 1.0e-6
+    x_star = (H_PLANCK * C_LIGHT) / (lam_m * K_BOLTZ * float(t_star_k))
+    w_model = w_data * np.expm1(x_star)
+    w_model = w_model / np.sum(w_model)
+    lambda_eff_um = float(np.sum(w_data * wl_sel) / np.sum(w_data))
+    return wl_sel, w_model, lambda_eff_um
+
+
 def inverse_variance_bin(
     times_days: np.ndarray,
     flux: np.ndarray,
@@ -157,6 +205,7 @@ def load_and_prepare(
         wavelength_min_um=wavelength_min_um,
         wavelength_max_um=wavelength_max_um,
     )
+    band_wl_um, band_weights, lambda_eff_um = band_model_weights(err, mask, wavelength, channel_sel)
 
     transit_mjd = nearest_transit_time_mjd(time_mjd)
     times_days = time_mjd - transit_mjd
@@ -183,6 +232,8 @@ def load_and_prepare(
         "orbital_period_days": np.asarray(PERIOD_DAYS, dtype=np.float64),
         "time_transit_days": np.asarray(0.0, dtype=np.float64),
         "source_time_mjd": time_mjd.astype(np.float64),
+        "band_wavelengths_um": band_wl_um.astype(np.float64),
+        "band_weights": band_weights.astype(np.float64),
     }
     provenance = {
         "target": "WASP-43 b",
@@ -203,8 +254,13 @@ def load_and_prepare(
         "primary_transit_half_width_days": float(primary_transit_half_width_days),
         "transit_epoch_mjd_used": float(transit_mjd),
         "period_days": float(PERIOD_DAYS),
+        "ephemeris_source": "Ivshina & Winn 2022 (ApJS 259, 62), BJD_TDB",
         "flux_units": "relative system flux",
         "error_units": "relative system flux",
+        "band_wavelengths_um": [float(x) for x in band_wl_um],
+        "band_weights_model": [float(x) for x in band_weights],
+        "band_effective_wavelength_um": float(lambda_eff_um),
+        "band_t_star_k": float(T_STAR_K),
     }
     return observations, provenance
 

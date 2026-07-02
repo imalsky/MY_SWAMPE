@@ -114,16 +114,35 @@ The forward model is a forced-dissipative shallow-water hot Jupiter (Perez-Becke
   **2-day run is converged** for both — the basis of the `fast` preset.
 - **Emission layer** (`cfg.emission_temp_mode`). Default `"geopotential"`:
   `T = (Φ̄ + Φ)/R_d` with `R_d=3.78e3` — the SWAMPE-JAX paper / Perez-Becker 2013
-  temperature proxy (~80–315 K, verified to recover both taus with a strong signal).
-  Alternative `"linear"`: `T = T_ref + Φ/phi_to_T_scale` (`1000`/`600` → a ~1000–2500 K
-  hot-Jupiter-like map). Intensity is `T⁴` (bolometric) or Planck.
+  temperature proxy (~80–315 K at the synthetic default `Φ̄=3e5`, verified to
+  recover both taus with a strong signal). Alternative `"linear"`:
+  `T = T_ref + Φ/phi_to_T_scale` (`1000`/`600` → a ~1000–2500 K hot-Jupiter-like
+  map). Intensity is `T⁴` (bolometric) or Planck — either a single wavelength
+  (`planck_wavelength_m`) or a **band-integrated sum**
+  (`planck_band_wavelengths_m` + `planck_band_weights`, used by the WASP-43b
+  real-data pilot with stellar-Planck-corrected channel weights). For real
+  targets choose `Φ̄` so `Φ̄/R_d` lands at the planet's actual brightness
+  temperature — the Planck curvature (day/night contrast per unit ΔT) is wrong
+  otherwise.
+- **Orientation convention (pinned by a regression test).** The SW substellar
+  point is at longitude 0 and the superrotating jet shifts the hot spot east
+  (+λ); the planet `Surface` uses a **negative rotation period** because
+  jaxoplanet's rotational phase increases with time while the sub-observer
+  longitude of a tidally locked prograde planet decreases. Net effect (the
+  physical one): an eastward hot spot makes the phase curve peak **before**
+  secondary eclipse. Synthetic self-tests are mirror-symmetric and cannot catch
+  a flip here; `tests/test_pipeline.py::test_eastward_hot_spot_peaks_before_eclipse`
+  can.
 - **Noise.** Two models (`cfg.noise_model`): `"white"` (constant `obs_sigma`,
   ~80 ppm, used by the fast/test path) and `"photon"` (heteroscedastic photon
   noise `σ_i = sigma_phot / √(1 + flux_i)`, ~50 ppm floor, used by the GPU full
   run). Photon noise makes brighter (dayside) points carry slightly smaller error;
   the per-point `σ_i` is computed once from the truth and held fixed in the
   likelihood, as real per-point uncertainties are. The truth amplitude is ~4000 ppm
-  → amplitude/noise ~50–80.
+  → amplitude/noise ~50–80. For real data, `infer_noise_inflation=True` adds a
+  free multiplicative sigma-scale parameter `k` to the likelihood
+  (`σ_eff = k·σ_i`, with the `−Σ log σ` term penalizing large `k`) so the data
+  calibrate under/over-estimated error bars.
 - **Priors.** Timescales use **log-uniform** priors (standard for scale parameters).
 
 Inferring more parameters (`Phibar`, `DPhieq`, `omega`, …) is supported via the

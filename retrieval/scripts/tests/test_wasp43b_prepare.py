@@ -5,8 +5,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import h5py
 import numpy as np
+import pytest
+
+h5py = pytest.importorskip("h5py", reason="h5py required for the WASP-43b preparation tests")
 
 _SUITE_SCRIPTS = Path(__file__).resolve().parents[2] / "wasp_43b_test" / "scripts"
 if str(_SUITE_SCRIPTS) not in sys.path:

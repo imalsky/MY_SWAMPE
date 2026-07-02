@@ -3,7 +3,7 @@
 #PBS -q gpu_long
 #PBS -W group_list=s2458
 #PBS -l select=1:ncpus=72:ngpus=1:mem=400gb:model=gh200
-#PBS -l walltime=08:00:00
+#PBS -l walltime=36:00:00
 #PBS -j oe
 #
 # Run the WASP-43 b real-data pilot retrieval on NASA NAS GH200.
@@ -56,6 +56,27 @@ mkdir -p "${PYTHONUSERBASE}" "${PIP_CACHE_DIR}"
 python - <<'PY' || python -m pip install --user -U h5py
 import h5py  # noqa: F401
 PY
+
+# Python's SSL trust store in the shared conda env is stale (same failure mode
+# run_nas.pbs works around for pip): probe system CA bundles so the Zenodo
+# fetch below can verify certificates. Non-fatal -- fetch_wasp43b_data.py
+# tolerates being offline when the archive already exists on disk.
+if ! python -c "
+import ssl, urllib.request
+urllib.request.urlopen('https://zenodo.org/api/records/10525170', context=ssl.create_default_context(), timeout=15)
+" >/dev/null 2>&1; then
+  for _cand in /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt \
+               /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem /etc/ssl/cert.pem; do
+    if [ -f "${_cand}" ] && python -c "
+import ssl, urllib.request, sys
+urllib.request.urlopen('https://zenodo.org/api/records/10525170', context=ssl.create_default_context(cafile=sys.argv[1]), timeout=15)
+" "${_cand}" >/dev/null 2>&1; then
+      echo "[net] using system CA bundle for the Zenodo fetch: ${_cand}"
+      export SSL_CERT_FILE="${_cand}" REQUESTS_CA_BUNDLE="${_cand}"
+      break
+    fi
+  done
+fi
 
 cd -P "${SUITE_DIR}"
 python -u scripts/fetch_wasp43b_data.py
