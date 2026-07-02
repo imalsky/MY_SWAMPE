@@ -105,11 +105,18 @@ plots/corner_posterior.png
   sets the forcing amplitude, inferring them removes the two strongest
   model-conditioning assumptions from the tau posteriors (at the cost of the
   expected amplitude degeneracies, which the corner plot shows honestly).
-- Solver: `dt = 120 s`, `K6 = 5e33`. The Phibar=4e6 regime has ~3.7x faster
+- Solver: `dt = 120 s`, `K6 = 5e33`. The Phibar~4e6 regime has ~3.7x faster
   gravity waves than the synthetic default (Phibar=3e5, dt=240, K6=1.24e33), so
-  the hyperdiffusion is rescaled with the wave speed and dt halved. Verified
-  20-day stable at every corner of the (tau_rad, tau_drag) prior box; the truth-
-  region temperature maps are identical to the default-K6 solution.
+  the hyperdiffusion is rescaled with the wave speed and dt halved. 20-day
+  stability was validated over all 16 corners of the (tau_rad, tau_drag,
+  Phibar, DPhieq) prior box: 14/16 stable. The only unstable region requires
+  *simultaneously* tau_rad = 48 h, tau_drag = 48 h, and Phibar = 8e6 (both
+  damping channels nearly off plus the fastest gravity waves). Proposals there
+  are soft-rejected by the NaN likelihood guard, and the region is
+  independently excluded by the data (tau_rad = 48 h predicts a near-flat
+  phase curve against the observed ~4200 ppm amplitude). Diagnostic: if a
+  posterior presses against those three upper bounds at once, rerun with K6
+  scaled as sqrt(Phibar/4e6) and revalidate the box.
 
 ## Modeling Caveats
 
