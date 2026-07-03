@@ -162,6 +162,16 @@ class RunFlags:
     model branches during a run. Boolean fields toggle major numerical paths,
     while `alpha` and `blowup_rms` are scalar floating-point thresholds used by
     the stepper and diagnostics logic.
+
+    Opt-in numerics modes (all defaults preserve reference-SWAMPE behavior
+    bit-for-bit; see CLAUDE.md section 13 and the readme):
+
+    - ``semi_implicit``: semi-implicit gravity-wave leapfrog + exponential
+      hyperdiffusion instead of the modified-Euler scheme. ``si_alpha`` is the
+      implicitness/off-centering parameter (0.5 = centered trapezoid).
+    - ``raw_filter``: Robert–Asselin–Williams time filter. ``williams_alpha``
+      is the Williams parameter (1.0 reproduces the classic RA filter exactly;
+      0.53 is Williams' optimum).
     """
 
     forcflag: bool = True
@@ -169,32 +179,50 @@ class RunFlags:
     expflag: bool = False
     modalflag: bool = True
     diagnostics: bool = True
+    semi_implicit: bool = False
+    raw_filter: bool = False
     alpha: Scalar = 0.01
     blowup_rms: Scalar = 8000.0
+    williams_alpha: Scalar = 0.53
+    si_alpha: Scalar = 0.5
 
 
     def tree_flatten(self):
-        """Flatten into JAX-array children (alpha, blowup_rms) and Python aux data (the bool flags)."""
+        """Flatten into JAX-array children (the scalars) and Python aux data (the bool flags)."""
         children = (
             jnp.asarray(self.alpha, dtype=float_dtype()),
             jnp.asarray(self.blowup_rms, dtype=float_dtype()),
+            jnp.asarray(self.williams_alpha, dtype=float_dtype()),
+            jnp.asarray(self.si_alpha, dtype=float_dtype()),
         )
-        aux_data = (self.forcflag, self.diffflag, self.expflag, self.modalflag, self.diagnostics)
+        aux_data = (
+            self.forcflag,
+            self.diffflag,
+            self.expflag,
+            self.modalflag,
+            self.diagnostics,
+            self.semi_implicit,
+            self.raw_filter,
+        )
         return children, aux_data
 
     @classmethod
     def tree_unflatten(cls, aux_data, children):
         """Reconstruct :class:`RunFlags` from JAX pytree children and metadata."""
-        forcflag, diffflag, expflag, modalflag, diagnostics = aux_data
-        alpha, blowup_rms = children
+        forcflag, diffflag, expflag, modalflag, diagnostics, semi_implicit, raw_filter = aux_data
+        alpha, blowup_rms, williams_alpha, si_alpha = children
         return cls(
             forcflag=bool(forcflag),
             diffflag=bool(diffflag),
             expflag=bool(expflag),
             modalflag=bool(modalflag),
             diagnostics=bool(diagnostics),
+            semi_implicit=bool(semi_implicit),
+            raw_filter=bool(raw_filter),
             alpha=alpha,
             blowup_rms=blowup_rms,
+            williams_alpha=williams_alpha,
+            si_alpha=si_alpha,
         )
 
 @jax.tree_util.register_pytree_node_class
@@ -242,6 +270,11 @@ class Static:
 
     sigma: jnp.ndarray
     sigmaPhi: jnp.ndarray
+    # Exponential (integrating-factor) hyperdiffusion factors; only consumed by
+    # the opt-in semi-implicit scheme, but always built (cheap (M+1, N+1) arrays)
+    # so the Static pytree structure does not depend on the mode.
+    sigma_exp: jnp.ndarray
+    sigmaPhi_exp: jnp.ndarray
 
     Phieq: jnp.ndarray
 
@@ -272,6 +305,8 @@ class Static:
             self.narray,
             self.sigma,
             self.sigmaPhi,
+            self.sigma_exp,
+            self.sigmaPhi_exp,
             self.Phieq,
         )
         aux_data = (self.M, self.N, self.I, self.J)
@@ -305,6 +340,8 @@ class Static:
             narray,
             sigma,
             sigmaPhi,
+            sigma_exp,
+            sigmaPhi_exp,
             Phieq,
         ) = children
         return cls(
@@ -335,6 +372,8 @@ class Static:
             narray=narray,
             sigma=sigma,
             sigmaPhi=sigmaPhi,
+            sigma_exp=sigma_exp,
+            sigmaPhi_exp=sigmaPhi_exp,
             Phieq=Phieq,
         )
 
@@ -374,6 +413,14 @@ class State(NamedTuple):
     PhiFm_curr: jnp.ndarray
     Fm_curr: jnp.ndarray
     Gm_curr: jnp.ndarray
+
+    # One-step-lagged nonlinear momentum-forcing remainder (Ru, Rv mass-source
+    # terms, i.e. F/G with the linear Rayleigh drag peeled off), in truncated
+    # Fourier space. Consumed only by the opt-in semi-implicit scheme, which
+    # evaluates the stiff nonlinear forcing at the lagged leapfrog level for
+    # stability (Williamson-style physics lagging); dead weight otherwise.
+    Rum_lag: jnp.ndarray
+    Rvm_lag: jnp.ndarray
 
     dead: jnp.ndarray  # bool scalar
 
@@ -467,6 +514,8 @@ def build_static(
 
     sigma = filters.sigma6(int(M), N, K6_j, a_j, dt_j)
     sigmaPhi = filters.sigma6Phi(int(M), N, K6Phi_eff, a_j, dt_j)
+    sigma_exp = filters.sigma6_exponential(int(M), N, K6_j, a_j, dt_j)
+    sigmaPhi_exp = filters.sigma6Phi_exponential(int(M), N, K6Phi_eff, a_j, dt_j)
 
     if test is None:
         DPhieq_j = jnp.asarray(DPhieq, dtype=float_dtype())
@@ -502,6 +551,8 @@ def build_static(
         narray=narray,
         sigma=sigma,
         sigmaPhi=sigmaPhi,
+        sigma_exp=sigma_exp,
+        sigmaPhi_exp=sigmaPhi_exp,
         Phieq=Phieq,
     )
 
@@ -680,6 +731,13 @@ def _init_state_from_fields(
 
     Am0, Bm0, Cm0, Dm0, Em0 = _nonlinear_spectral(static=static, eta=eta0, Phi=Phi0, U=U0, V=V0)
 
+    # Lagged nonlinear momentum-forcing remainder (semi-implicit scheme only):
+    # peel the linear Rayleigh drag off F/G in Fourier space, leaving the
+    # Ru/Rv mass-source terms. taudrag == -1 disables drag (forcing.Rfun).
+    Rum0, Rvm0 = _momentum_forcing_remainder(
+        Fm=Fm0, Gm=Gm0, Um=Um0, Vm=Vm0, taudrag=static.taudrag
+    )
+
     dead0 = jnp.asarray(False)
 
     # Two-level initialization: time levels 0 and 1 are identical.
@@ -708,8 +766,30 @@ def _init_state_from_fields(
         PhiFm_curr=PhiFm0,
         Fm_curr=Fm0,
         Gm_curr=Gm0,
+        Rum_lag=Rum0,
+        Rvm_lag=Rvm0,
         dead=dead0,
     )
+
+
+def _momentum_forcing_remainder(
+    *,
+    Fm: jnp.ndarray,
+    Gm: jnp.ndarray,
+    Um: jnp.ndarray,
+    Vm: jnp.ndarray,
+    taudrag: jnp.ndarray,
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    """Nonlinear momentum-forcing remainder in truncated Fourier space.
+
+    ``forcing.Rfun`` produces ``F = Ru - U/taudrag`` (and ``G`` likewise); by
+    FFT linearity ``Fm + Um/taudrag`` recovers the Fourier transform of the
+    nonlinear ``Ru`` mass-source term exactly. ``taudrag == -1`` is the SWAMPE
+    "drag disabled" sentinel, in which case F/G are already pure remainders.
+    """
+    taudrag_arr = jnp.asarray(taudrag)
+    inv_taudrag = jnp.where(taudrag_arr == -1.0, jnp.zeros_like(taudrag_arr), 1.0 / taudrag_arr)
+    return Fm + Um * inv_taudrag, Gm + Vm * inv_taudrag
 
 
 def _step_once(
@@ -785,52 +865,106 @@ def _step_once(
 
     def do_update(_: Any) -> Tuple[State, Dict[str, Any]]:
         """Healthy branch: advance one leapfrog step and build the next scan carry."""
-        # Core time stepping (returns physical-space fields + spectral eta/delta/Phi)
-        newetamn, neweta, newetam, newdeltamn, newdelta, newdeltam, newPhimn, newPhi, newPhim, newU, newV, newUm, newVm = time_stepping.tstepping(
-            state.etam_prev,
-            state.etam_curr,
-            state.deltam_prev,
-            state.deltam_curr,
-            state.Phim_prev,
-            state.Phim_curr,
-            I,
-            J,
-            M,
-            N,
-            state.Am_curr,
-            state.Bm_curr,
-            state.Cm_curr,
-            state.Dm_curr,
-            state.Em_curr,
-            state.Fm_curr,
-            state.Gm_curr,
-            state.Um_curr,
-            state.Vm_curr,
-            static.fmn,
-            static.Pmn,
-            static.Hmn,
-            static.Pmnw,
-            static.Hmnw,
-            static.tstepcoeff,
-            static.tstepcoeff2,
-            static.tstepcoeffmn,
-            static.marray,
-            static.mJarray,
-            static.narray,
-            state.PhiFm_curr,
-            static.dt,
-            static.a,
-            static.Phibar,
-            static.taurad,
-            static.taudrag,
-            flags.forcflag,
-            flags.diffflag,
-            flags.expflag,
-            static.sigma,
-            static.sigmaPhi,
-            test,
-            t,
-        )
+        # Core time stepping (returns physical-space fields + spectral eta/delta/Phi).
+        # Scheme dispatch is a static Python branch (flags.semi_implicit lives in
+        # aux_data): the default modified-Euler/explicit path is untouched.
+        if flags.semi_implicit:
+            newetamn, neweta, newetam, newdeltamn, newdelta, newdeltam, newPhimn, newPhi, newPhim, newU, newV, newUm, newVm = time_stepping.tstepping_semi_implicit(
+                state.Rum_lag,
+                state.Rvm_lag,
+                state.etam_prev,
+                state.etam_curr,
+                state.deltam_prev,
+                state.deltam_curr,
+                state.Phim_prev,
+                state.Phim_curr,
+                I,
+                J,
+                M,
+                N,
+                state.Am_curr,
+                state.Bm_curr,
+                state.Cm_curr,
+                state.Dm_curr,
+                state.Em_curr,
+                state.Fm_curr,
+                state.Gm_curr,
+                state.Um_curr,
+                state.Vm_curr,
+                static.fmn,
+                static.Pmn,
+                static.Hmn,
+                static.Pmnw,
+                static.Hmnw,
+                static.tstepcoeff,
+                static.tstepcoeff2,
+                static.tstepcoeffmn,
+                static.marray,
+                static.mJarray,
+                static.narray,
+                state.PhiFm_curr,
+                static.dt,
+                static.a,
+                static.Phibar,
+                static.taurad,
+                static.taudrag,
+                flags.forcflag,
+                flags.diffflag,
+                # The implicit relaxation/drag treatment only applies when the
+                # physical forcing is active (mirrors _forcing_phys).
+                flags.forcflag and (test is None),
+                static.sigma_exp,
+                static.sigmaPhi_exp,
+                flags.si_alpha,
+                test,
+                t,
+            )
+        else:
+            newetamn, neweta, newetam, newdeltamn, newdelta, newdeltam, newPhimn, newPhi, newPhim, newU, newV, newUm, newVm = time_stepping.tstepping(
+                state.etam_prev,
+                state.etam_curr,
+                state.deltam_prev,
+                state.deltam_curr,
+                state.Phim_prev,
+                state.Phim_curr,
+                I,
+                J,
+                M,
+                N,
+                state.Am_curr,
+                state.Bm_curr,
+                state.Cm_curr,
+                state.Dm_curr,
+                state.Em_curr,
+                state.Fm_curr,
+                state.Gm_curr,
+                state.Um_curr,
+                state.Vm_curr,
+                static.fmn,
+                static.Pmn,
+                static.Hmn,
+                static.Pmnw,
+                static.Hmnw,
+                static.tstepcoeff,
+                static.tstepcoeff2,
+                static.tstepcoeffmn,
+                static.marray,
+                static.mJarray,
+                static.narray,
+                state.PhiFm_curr,
+                static.dt,
+                static.a,
+                static.Phibar,
+                static.taurad,
+                static.taudrag,
+                flags.forcflag,
+                flags.diffflag,
+                flags.expflag,
+                static.sigma,
+                static.sigmaPhi,
+                test,
+                t,
+            )
 
         # The spectral transforms return complex physical-space fields (IFFT).
         # SWAMPE treats these as real (discarding the negligible imaginary
@@ -849,21 +983,131 @@ def _step_once(
             newUm, newVm = state.Um_curr, state.Vm_curr
 
         # Robert–Asselin / modal splitting affects diagnostics of the *current* level.
+        # The filter coefficient adopts the state dtype so a float32 state (e.g.
+        # a mixed-precision scan under global x64) is not silently upcast.
         do_ra = jnp.logical_and(jnp.asarray(flags.modalflag), t > 2)
-        alpha = jnp.asarray(flags.alpha, dtype=float_dtype())
+        alpha = jnp.asarray(flags.alpha, dtype=neweta.dtype)
 
-        def apply_ra(_: Any) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-            """Apply the Robert-Asselin three-level smoothing filter to eta/delta/Phi."""
-            eta_mid = state.eta_curr + alpha * (state.eta_prev - 2.0 * state.eta_curr + neweta)
-            delta_mid = state.delta_curr + alpha * (state.delta_prev - 2.0 * state.delta_curr + newdelta)
-            Phi_mid = state.Phi_curr + alpha * (state.Phi_prev - 2.0 * state.Phi_curr + newPhi)
-            return eta_mid, delta_mid, Phi_mid
+        if not flags.raw_filter:
+            # Classic Robert–Asselin filter: smooth the *_prev carry only.
+            # This is the locked-parity default path (CLAUDE.md section 3, item 10).
+            def apply_ra(_: Any) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+                """Apply the Robert-Asselin three-level smoothing filter to eta/delta/Phi."""
+                eta_mid = state.eta_curr + alpha * (state.eta_prev - 2.0 * state.eta_curr + neweta)
+                delta_mid = state.delta_curr + alpha * (state.delta_prev - 2.0 * state.delta_curr + newdelta)
+                Phi_mid = state.Phi_curr + alpha * (state.Phi_prev - 2.0 * state.Phi_curr + newPhi)
+                return eta_mid, delta_mid, Phi_mid
 
-        def no_ra(_: Any) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-            """Identity branch when the Robert-Asselin filter is disabled (e.g., t<=2)."""
-            return state.eta_curr, state.delta_curr, state.Phi_curr
+            def no_ra(_: Any) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+                """Identity branch when the Robert-Asselin filter is disabled (e.g., t<=2)."""
+                return state.eta_curr, state.delta_curr, state.Phi_curr
 
-        eta_mid, delta_mid, Phi_mid = jax.lax.cond(do_ra, apply_ra, no_ra, operand=None)
+            eta_mid, delta_mid, Phi_mid = jax.lax.cond(do_ra, apply_ra, no_ra, operand=None)
+            eta_new_eff, delta_new_eff, Phi_new_eff = neweta, newdelta, newPhi
+            etam_new_eff, deltam_new_eff, Phim_new_eff = newetam, newdeltam, newPhim
+        else:
+            # Robert–Asselin–Williams (RAW) filter, Williams (2009): the same
+            # displacement d is applied to the current level (weight
+            # alpha*williams_alpha) and, with opposite sign, to the new level
+            # (weight alpha*(1-williams_alpha)), restoring conservation of the
+            # three-level mean. williams_alpha=1 reproduces classic RA exactly.
+            w_alpha = jnp.asarray(flags.williams_alpha, dtype=neweta.dtype)
+
+            def apply_raw(_: Any):
+                """RAW filter: return (mids, adjusted new levels)."""
+                d_eta = state.eta_prev - 2.0 * state.eta_curr + neweta
+                d_delta = state.delta_prev - 2.0 * state.delta_curr + newdelta
+                d_Phi = state.Phi_prev - 2.0 * state.Phi_curr + newPhi
+                return (
+                    state.eta_curr + alpha * w_alpha * d_eta,
+                    state.delta_curr + alpha * w_alpha * d_delta,
+                    state.Phi_curr + alpha * w_alpha * d_Phi,
+                    neweta - alpha * (1.0 - w_alpha) * d_eta,
+                    newdelta - alpha * (1.0 - w_alpha) * d_delta,
+                    newPhi - alpha * (1.0 - w_alpha) * d_Phi,
+                )
+
+            def no_raw(_: Any):
+                """Identity branch when the RAW filter is disabled (e.g., t<=2)."""
+                return (
+                    state.eta_curr,
+                    state.delta_curr,
+                    state.Phi_curr,
+                    neweta,
+                    newdelta,
+                    newPhi,
+                )
+
+            (
+                eta_mid,
+                delta_mid,
+                Phi_mid,
+                eta_new_eff,
+                delta_new_eff,
+                Phi_new_eff,
+            ) = jax.lax.cond(do_ra, apply_raw, no_raw, operand=None)
+
+            # Mirror the filter on the truncated Fourier carries so the spectral
+            # current level tracks the adjusted physical fields (FFT is linear,
+            # so this is exactly the transform of the physical filter as long as
+            # the Fourier prev carry follows its own filtered lineage — which it
+            # does below via etam_mid/deltam_mid/Phim_mid).
+            def apply_raw_m(_: Any):
+                """RAW filter on the truncated Fourier coefficients."""
+                dm_eta = state.etam_prev - 2.0 * state.etam_curr + newetam
+                dm_delta = state.deltam_prev - 2.0 * state.deltam_curr + newdeltam
+                dm_Phi = state.Phim_prev - 2.0 * state.Phim_curr + newPhim
+                return (
+                    state.etam_curr + alpha * w_alpha * dm_eta,
+                    state.deltam_curr + alpha * w_alpha * dm_delta,
+                    state.Phim_curr + alpha * w_alpha * dm_Phi,
+                    newetam - alpha * (1.0 - w_alpha) * dm_eta,
+                    newdeltam - alpha * (1.0 - w_alpha) * dm_delta,
+                    newPhim - alpha * (1.0 - w_alpha) * dm_Phi,
+                )
+
+            def no_raw_m(_: Any):
+                """Identity branch for the Fourier-space RAW filter."""
+                return (
+                    state.etam_curr,
+                    state.deltam_curr,
+                    state.Phim_curr,
+                    newetam,
+                    newdeltam,
+                    newPhim,
+                )
+
+            (
+                etam_mid,
+                deltam_mid,
+                Phim_mid,
+                etam_new_eff,
+                deltam_new_eff,
+                Phim_new_eff,
+            ) = jax.lax.cond(do_ra, apply_raw_m, no_raw_m, operand=None)
+
+        if flags.semi_implicit and not flags.raw_filter:
+            # The semi-implicit leapfrog reads the Fourier prev carry as its
+            # n-1 base, so the filter must also act on the Fourier lineage
+            # (unlike the locked default, where the spectral carries are
+            # deliberately left unfiltered — CLAUDE.md section 3, item 10 —
+            # and the modified-Euler scheme never reads them).
+            def apply_ra_m(_: Any) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+                """Classic RA filter on the truncated Fourier coefficients."""
+                etam_mid_ = state.etam_curr + alpha * (state.etam_prev - 2.0 * state.etam_curr + newetam)
+                deltam_mid_ = state.deltam_curr + alpha * (state.deltam_prev - 2.0 * state.deltam_curr + newdeltam)
+                Phim_mid_ = state.Phim_curr + alpha * (state.Phim_prev - 2.0 * state.Phim_curr + newPhim)
+                return etam_mid_, deltam_mid_, Phim_mid_
+
+            def no_ra_m(_: Any) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+                """Identity branch for the Fourier-space RA filter."""
+                return state.etam_curr, state.deltam_curr, state.Phim_curr
+
+            etam_mid, deltam_mid, Phim_mid = jax.lax.cond(do_ra, apply_ra_m, no_ra_m, operand=None)
+        elif not flags.raw_filter:
+            # Locked default: spectral prev carries are the unfiltered current
+            # levels (deliberate desync, CLAUDE.md section 3, item 10).
+            etam_mid, deltam_mid, Phim_mid = state.etam_curr, state.deltam_curr, state.Phim_curr
 
         if flags.diagnostics:
             phi_min = jnp.min(Phi_mid)
@@ -873,34 +1117,44 @@ def _step_once(
             phi_max = jnp.asarray(0.0, dtype=float_dtype())
 
         # Build forcing and nonlinear terms for the NEXT step (based on the new state).
-        PhiF2, F2, G2 = _forcing_phys(static=static, flags=flags, test=test, Phi=newPhi, U=newU, V=newV)
+        PhiF2, F2, G2 = _forcing_phys(static=static, flags=flags, test=test, Phi=Phi_new_eff, U=newU, V=newV)
         PhiFm2, Fm2, Gm2 = st.fwd_fft_trunc_batch(jnp.stack((PhiF2, F2, G2), axis=0), I, M)
 
-        Am2, Bm2, Cm2, Dm2, Em2 = _nonlinear_spectral(static=static, eta=neweta, Phi=newPhi, U=newU, V=newV)
+        Am2, Bm2, Cm2, Dm2, Em2 = _nonlinear_spectral(static=static, eta=eta_new_eff, Phi=Phi_new_eff, U=newU, V=newV)
 
         # Fourier of prognostic and wind fields for the NEXT step.
         #
         # Avoid redundant physical→spectral FFTs by reusing the truncated Fourier
         # coefficients already computed inside the timestepper/inversion.
-        etam2 = newetam
-        deltam2 = newdeltam
-        Phim2 = newPhim
+        etam2 = etam_new_eff
+        deltam2 = deltam_new_eff
+        Phim2 = Phim_new_eff
         Um2 = newUm
         Vm2 = newVm
 
+        if flags.semi_implicit:
+            # Advance the lagged-forcing pipeline: the incoming current-level
+            # remainder becomes the next step's lagged remainder.
+            Rum_next, Rvm_next = _momentum_forcing_remainder(
+                Fm=state.Fm_curr, Gm=state.Gm_curr, Um=state.Um_curr, Vm=state.Vm_curr,
+                taudrag=static.taudrag,
+            )
+        else:
+            Rum_next, Rvm_next = state.Rum_lag, state.Rvm_lag
+
         new_state = State(
-            etam_prev=state.etam_curr,
+            etam_prev=etam_mid,
             etam_curr=etam2,
-            deltam_prev=state.deltam_curr,
+            deltam_prev=deltam_mid,
             deltam_curr=deltam2,
-            Phim_prev=state.Phim_curr,
+            Phim_prev=Phim_mid,
             Phim_curr=Phim2,
             eta_prev=eta_mid,
-            eta_curr=neweta,
+            eta_curr=eta_new_eff,
             delta_prev=delta_mid,
-            delta_curr=newdelta,
+            delta_curr=delta_new_eff,
             Phi_prev=Phi_mid,
-            Phi_curr=newPhi,
+            Phi_curr=Phi_new_eff,
             U_curr=newU,
             V_curr=newV,
             Um_curr=Um2,
@@ -913,6 +1167,8 @@ def _step_once(
             PhiFm_curr=PhiFm2,
             Fm_curr=Fm2,
             Gm_curr=Gm2,
+            Rum_lag=Rum_next,
+            Rvm_lag=Rvm_next,
             dead=dead_next,
         )
 
@@ -920,9 +1176,9 @@ def _step_once(
             t=t,
             dead=dead_next,
             # new state at time t
-            eta=neweta,
-            delta=newdelta,
-            Phi=newPhi,
+            eta=eta_new_eff,
+            delta=delta_new_eff,
+            Phi=Phi_new_eff,
             U=newU,
             V=newV,
             # diagnostics for time t-1 (current, possibly RA-filtered)
@@ -1118,6 +1374,11 @@ def run_model_scan(
     Phi0_init: Optional[jnp.ndarray] = None,
     U0_init: Optional[jnp.ndarray] = None,
     V0_init: Optional[jnp.ndarray] = None,
+    # Opt-in numerics modes (defaults preserve reference-SWAMPE behavior bit-for-bit)
+    semi_implicit: bool = False,
+    si_alpha: Scalar = 0.5,
+    raw_filter: bool = False,
+    williams_alpha: Scalar = 0.53,
     # Performance knobs
     diagnostics: bool = True,
     return_history: bool = True,
@@ -1208,6 +1469,20 @@ def run_model_scan(
         Optional physical-space zonal wind field with shape ``(J, I)``.
     V0_init : Optional[jnp.ndarray]
         Optional physical-space meridional wind field with shape ``(J, I)``.
+    semi_implicit : bool
+        Opt-in semi-implicit gravity-wave leapfrog + exponential hyperdiffusion
+        (removes the gravity-wave CFL limit on ``dt``). Incompatible with
+        ``expflag``. Default False (bit-identical to reference SWAMPE).
+    si_alpha : Scalar
+        Implicitness/off-centering of the semi-implicit solve; 0.5 is the
+        centered trapezoid. Only used when ``semi_implicit=True``.
+    raw_filter : bool
+        Opt-in Robert–Asselin–Williams (RAW) time filter (Williams 2009).
+        Incompatible with ``expflag``. Default False.
+    williams_alpha : Scalar
+        Williams parameter for the RAW filter; 1.0 reproduces the classic RA
+        filter exactly, 0.53 is Williams' optimum. Only used when
+        ``raw_filter=True``.
     diagnostics : bool
         Enables RMS-wind diagnostics and blow-up gating during the scan.
     return_history : bool
@@ -1253,13 +1528,25 @@ def run_model_scan(
     if test is not None:
         test = int(test)
 
+    if semi_implicit and expflag:
+        raise ValueError("semi_implicit=True is incompatible with expflag=True (pick one scheme).")
+    if raw_filter and expflag:
+        raise ValueError(
+            "raw_filter=True is incompatible with expflag=True (the explicit scheme reads the "
+            "unfiltered spectral prev carry, so the RAW lineage change would alter its parity behavior)."
+        )
+
     flags = RunFlags(
         forcflag=bool(forcflag),
         diffflag=bool(diffflag),
         expflag=bool(expflag),
         modalflag=bool(modalflag),
         diagnostics=bool(diagnostics),
+        semi_implicit=bool(semi_implicit),
+        raw_filter=bool(raw_filter),
         alpha=alpha,
+        williams_alpha=williams_alpha,
+        si_alpha=si_alpha,
     )
 
     static = build_static(
@@ -1586,6 +1873,11 @@ def run_model_scan_final(
     Phi0_init: Optional[jnp.ndarray] = None,
     U0_init: Optional[jnp.ndarray] = None,
     V0_init: Optional[jnp.ndarray] = None,
+    # Opt-in numerics modes (defaults preserve reference-SWAMPE behavior bit-for-bit)
+    semi_implicit: bool = False,
+    si_alpha: Scalar = 0.5,
+    raw_filter: bool = False,
+    williams_alpha: Scalar = 0.53,
     # Performance knobs
     diagnostics: bool = False,
     remat_step: bool = False,
@@ -1647,6 +1939,10 @@ def run_model_scan_final(
         Phi0_init=Phi0_init,
         U0_init=U0_init,
         V0_init=V0_init,
+        semi_implicit=semi_implicit,
+        si_alpha=si_alpha,
+        raw_filter=raw_filter,
+        williams_alpha=williams_alpha,
         diagnostics=diagnostics,
         return_history=False,
         remat_step=remat_step,
@@ -1687,6 +1983,11 @@ def run_model(
     verbose: bool = True,
     *,
     K6Phi: Optional[float] = None,
+    # Opt-in numerics modes (defaults preserve reference-SWAMPE behavior bit-for-bit)
+    semi_implicit: bool = False,
+    si_alpha: float = 0.5,
+    raw_filter: bool = False,
+    williams_alpha: float = 0.53,
     # Performance knobs
     jit_scan: bool = True,
     as_numpy: bool = True,
@@ -1762,6 +2063,10 @@ def run_model(
         custompath=custompath,
         contTime=contTime,
         timeunits=timeunits,
+        semi_implicit=semi_implicit,
+        si_alpha=si_alpha,
+        raw_filter=raw_filter,
+        williams_alpha=williams_alpha,
         jit_scan=jit_scan,
     )
 

@@ -335,8 +335,8 @@ def test_expanded_param_rebuild_path():
 
 def test_eastward_hot_spot_peaks_before_eclipse(pipe):
     """Absolute-orientation regression (real-data critical, mirror-symmetric in
-    synthetic self-tests): the SW model's eastward equatorial flow shifts the hot
-    spot EAST (+lambda) of the substellar point, so the disk-integrated phase curve must
+    synthetic self-tests): the SW model's superrotation shifts the hot spot EAST
+    (+lambda) of the substellar point, so the disk-integrated phase curve must
     peak BEFORE secondary eclipse (Knutson et al. 2007; WASP-43b behaves this
     way). A sign flip in the map -> starry handoff passes every synthetic
     recovery test but mirrors the offset; this pins the physical convention.

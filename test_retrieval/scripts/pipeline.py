@@ -31,7 +31,7 @@ import os
 import sys
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -103,32 +103,6 @@ class Config:
     # Numeric precision / XLA behavior
     use_x64: bool = False
     xla_preallocate: bool = False
-    # Mixed precision (requires use_x64=True): run the SWAMP dynamics scan —
-    # which is essentially the entire cost of a likelihood evaluation — in
-    # float32, and cast the terminal Phi map to float64 for the emission +
-    # starry projection + jaxoplanet light-curve stage. The 2026-06-30 probe
-    # localized the all-float32 gradient failure to the eclipse-contact
-    # derivatives in the light-curve stage, while the 14400-step dynamics
-    # matched float64 to ~0.05 ppm — so only the projection stage needs f64.
-    # Off by default: behavior is bit-identical to the pure-f64 pipeline.
-    mixed_precision: bool = False
-
-    # Opt-in MY_SWAMP numerics modes (defaults preserve the locked SWAMPE-parity
-    # scheme bit-for-bit; see MY_SWAMP readme section 9 and CLAUDE.md section 13).
-    #   semi_implicit : semi-implicit gravity-wave leapfrog + exponential
-    #       hyperdiffusion. Stable at much larger dt in the hot-Jupiter regime
-    #       (dt=600 s corner-validated for the WASP-43b prior box with
-    #       raw_filter=True, alpha=0.05, default K6). si_alpha is the
-    #       implicitness parameter (0.5 = centered trapezoid).
-    #   raw_filter : Robert-Asselin-Williams time filter; williams_alpha=1.0
-    #       reproduces the classic RA filter exactly, 0.53 is Williams' optimum.
-    #       Only acts in the leapfrog (semi-implicit) scheme; pair it with the
-    #       stronger filter strength (cfg.alpha ~ 0.05) that robust large-dt
-    #       semi-implicit integrations need.
-    semi_implicit: bool = False
-    si_alpha: float = 0.5
-    raw_filter: bool = False
-    williams_alpha: float = 0.53
 
     # SWAMP numerical params (SHAPES) - NOT inferred
     M: int = 42
@@ -298,24 +272,6 @@ class Config:
     mcmc_step_size_max: float = 5.0
     mcmc_tune_gain: float = 0.7
 
-    # Per-stage MCMC adaptation (MALA only). The one-shot tuner above picks a
-    # single step size at prior scale (mcmc_tune_beta); as tempering concentrates
-    # the posterior that step becomes far too large and mutation acceptance
-    # collapses (the WASP-43b pilot ended at accept=0.001 -> 25 unique particles).
-    # With mcmc_stage_adapt=True the loop instead:
-    #   (a) re-adapts the step size after every tempering stage toward
-    #       mcmc_target_accept_mala (Robbins-Monro in log step, gain
-    #       mcmc_stage_adapt_gain), and
-    #   (b) preconditions the MALA proposal with a diagonal scale equal to the
-    #       weighted particle std per u-dimension (normalized to unit geometric
-    #       mean, clipped to [1/mcmc_scale_clip, mcmc_scale_clip]), so the
-    #       proposal tracks the posterior's shape as it narrows.
-    # The one-shot pilot tuner is skipped in this mode (it tunes the
-    # unpreconditioned kernel); cfg.mala_step_size seeds the adaptation.
-    mcmc_stage_adapt: bool = False
-    mcmc_stage_adapt_gain: float = 1.0
-    mcmc_scale_clip: float = 20.0
-
     smc_resampling: str = "systematic"
     smc_max_steps: int = 32
     smc_use_custom_gradients: bool = True
@@ -358,17 +314,6 @@ def validate_config(cfg: Config) -> None:
         )
     if str(cfg.emission_temp_mode).strip().lower() not in {"geopotential", "linear"}:
         raise ValueError(f"cfg.emission_temp_mode must be 'geopotential' or 'linear', got {cfg.emission_temp_mode!r}")
-    if cfg.mixed_precision and not cfg.use_x64:
-        raise ValueError(
-            "cfg.mixed_precision=True requires cfg.use_x64=True: the point of mixed precision "
-            "is a float32 dynamics scan inside an otherwise float64 (light-curve) pipeline."
-        )
-    if cfg.semi_implicit and cfg.expflag:
-        raise ValueError("cfg.semi_implicit=True is incompatible with cfg.expflag=True (see my_swamp docs).")
-    if cfg.mcmc_stage_adapt and str(cfg.smc_mcmc_kernel).strip().lower() != "mala":
-        raise ValueError("cfg.mcmc_stage_adapt=True is only implemented for smc_mcmc_kernel='mala'.")
-    if cfg.mcmc_stage_adapt and not (float(cfg.mcmc_scale_clip) >= 1.0):
-        raise ValueError(f"cfg.mcmc_scale_clip must be >= 1.0, got {cfg.mcmc_scale_clip!r}")
     if cfg.model_days <= 0:
         raise ValueError("cfg.model_days must be > 0")
     if cfg.dt_seconds <= 0:
@@ -420,26 +365,6 @@ def np_float_dtype() -> Any:
 def tau_hours_to_seconds(x_hours: Any) -> Any:
     """Convert a timescale from hours to seconds."""
     return 3600.0 * x_hours
-
-
-def cast_tree_to_f32(tree: Any) -> Any:
-    """Cast every float leaf of a pytree to float32 (complex to complex64).
-
-    Integer/bool leaves and non-array aux data are left untouched, so `Static`
-    and `State` keep their structure. `astype` is differentiable, so gradients
-    flow across the f64 -> f32 boundary (computed in f32, returned in the
-    caller's dtype).
-    """
-
-    def _cast(x: Any) -> Any:
-        if isinstance(x, (jax.Array, jnp.ndarray)) or hasattr(x, "dtype"):
-            if jnp.issubdtype(x.dtype, jnp.complexfloating):
-                return x.astype(jnp.complex64)
-            if jnp.issubdtype(x.dtype, jnp.floating):
-                return x.astype(jnp.float32)
-        return x
-
-    return jax.tree_util.tree_map(_cast, tree)
 
 
 def orbital_period_days_from_omega(omega_rad_s: Any) -> Any:
@@ -606,19 +531,9 @@ def build_pipeline(cfg: Config) -> Pipeline:
     flags = call_with_filtered_kwargs(
         RunFlags,
         dict(forcflag=cfg.forcflag, diffflag=cfg.diffflag, expflag=cfg.expflag, modalflag=cfg.modalflag,
-             diagnostics=cfg.diagnostics, alpha=float(cfg.alpha), blowup_rms=float(cfg.blowup_rms),
-             semi_implicit=bool(cfg.semi_implicit), raw_filter=bool(cfg.raw_filter),
-             si_alpha=float(cfg.si_alpha), williams_alpha=float(cfg.williams_alpha)),
+             diagnostics=cfg.diagnostics, alpha=float(cfg.alpha), blowup_rms=float(cfg.blowup_rms)),
         name="RunFlags",
     )
-    # A my_swamp too old for these flags would silently drop them above and run
-    # the WRONG scheme — fail loudly instead of producing plausible garbage.
-    if bool(cfg.semi_implicit) and not bool(getattr(flags, "semi_implicit", False)):
-        raise RuntimeError("cfg.semi_implicit=True but this my_swamp has no RunFlags.semi_implicit; "
-                           "update my_swamp (needs the 2026-07 semi-implicit scheme).")
-    if bool(cfg.raw_filter) and not bool(getattr(flags, "raw_filter", False)):
-        raise RuntimeError("cfg.raw_filter=True but this my_swamp has no RunFlags.raw_filter; "
-                           "update my_swamp (needs the 2026-07 RAW filter).")
 
     # ---- static builder (jit-safe after eager warm of the geometry cache) ----
     def _build_static_from_values(*, taurad_s, taudrag_s, Phibar, DPhieq, K6, K6Phi, omega, a, g):
@@ -877,19 +792,6 @@ def build_pipeline(cfg: Config) -> Pipeline:
                 K6=K6, K6Phi=(None if K6Phi is None else K6Phi), omega=omega, a=a, g=g)
             state0, U0, V0 = build_state0(static)
 
-        if cfg.mixed_precision:
-            # f32 dynamics inside the f64 pipeline: cast the static operators
-            # (including any traced sampled parameters baked into them) and the
-            # initial state down; the terminal Phi is cast back up below, so the
-            # emission/starry/light-curve stage stays float64.
-            static = cast_tree_to_f32(static)
-            state0 = cast_tree_to_f32(state0)
-            U0 = jnp.asarray(U0, dtype=jnp.float32)
-            V0 = jnp.asarray(V0, dtype=jnp.float32)
-
-        def _phi_out(phi):
-            return phi.astype(dtype) if cfg.mixed_precision else phi
-
         sim_last = getattr(swamp_model, "simulate_scan_last", None) or getattr(swamp_model, "run_model_scan_final", None)
         if sim_last is not None:
             # `simulate_scan_last` never accepts jit_scan/return_history (it always
@@ -903,7 +805,7 @@ def build_pipeline(cfg: Config) -> Pipeline:
             last_state = out
             if isinstance(out, dict) and "last_state" in out:
                 last_state = out["last_state"]
-            return _phi_out(getattr(last_state, "Phi_curr"))
+            return getattr(last_state, "Phi_curr")
 
         step_fn = getattr(swamp_model, "_step_once_state_only", None)
         if step_fn is None:
@@ -913,7 +815,7 @@ def build_pipeline(cfg: Config) -> Pipeline:
             return step_fn(st, t_seq[i], static, flags, None, U0, V0)
 
         state_f = jax.lax.fori_loop(0, int(t_seq.shape[0]), body, state0)
-        return _phi_out(getattr(state_f, "Phi_curr"))
+        return getattr(state_f, "Phi_curr")
 
     # ---- starry phase curve ----
     central = Central(radius=cfg.star_radius_rsun, mass=cfg.star_mass_msun)
@@ -1248,74 +1150,6 @@ def _hmc_step_one(rng_key, state, logdensity_fn, step_size, inverse_mass_matrix,
                       inverse_mass_matrix=inverse_mass_matrix, num_integration_steps=num_integration_steps)
 
 
-class _PrecondMALAInfo(NamedTuple):
-    acceptance_rate: Any
-    is_accepted: Any
-
-
-def _build_preconditioned_mala_kernel():
-    """MALA with a diagonal proposal preconditioner (for per-stage SMC adaptation).
-
-    Proposal (blackjax convention: ``step_size`` is the Langevin tau, D = scale_diag**2):
-
-        x' = x + tau * D * grad(x) + sqrt(2*tau) * scale_diag * xi
-
-    with the matching asymmetric MH correction, q(b|a) = N(b; a + tau*D*g(a), 2*tau*D).
-    ``scale_diag = ones`` reproduces ``blackjax.mala`` exactly (same proposal, same
-    acceptance ratio). The kernel consumes/produces ``blackjax.mala.init`` states, so
-    it drops into the BlackJAX SMC mutation slot unchanged; ``scale_diag`` arrives per
-    particle via ``mcmc_parameters`` like ``step_size`` does.
-    """
-
-    def _log_q(a_pos, a_grad, b_pos, step_size, scale_diag):
-        # log N(b; a + tau*D*g(a), 2*tau*D) up to the (symmetric, cancelling) normalization
-        diff = (b_pos - a_pos - step_size * (scale_diag * scale_diag) * a_grad) / scale_diag
-        return -0.25 / step_size * jnp.sum(diff * diff)
-
-    def kernel(rng_key, state, logdensity_fn, step_size, scale_diag):
-        key_prop, key_accept = jax.random.split(rng_key)
-        pos, logp, grad = state.position, state.logdensity, state.logdensity_grad
-        scale_diag = jnp.asarray(scale_diag, dtype=pos.dtype)
-        noise = jax.random.normal(key_prop, shape=pos.shape, dtype=pos.dtype)
-        new_pos = (pos + step_size * (scale_diag * scale_diag) * grad
-                   + jnp.sqrt(2.0 * step_size) * scale_diag * noise)
-        new_logp, new_grad = jax.value_and_grad(logdensity_fn)(new_pos)
-        log_accept = (new_logp - logp
-                      + _log_q(new_pos, new_grad, pos, step_size, scale_diag)
-                      - _log_q(pos, grad, new_pos, step_size, scale_diag))
-        # A non-finite proposal density (blown-up forward model) is a rejection,
-        # never a NaN that poisons the particle.
-        log_accept = jnp.where(jnp.isfinite(log_accept), log_accept, -jnp.inf)
-        p_accept = jnp.exp(jnp.minimum(log_accept, 0.0))
-        u = jax.random.uniform(key_accept, dtype=p_accept.dtype)
-        do_accept = jnp.log(u) < log_accept
-        new_state = type(state)(new_pos, new_logp, new_grad)
-        out_state = jax.lax.cond(do_accept, lambda _: new_state, lambda _: state, operand=None)
-        return out_state, _PrecondMALAInfo(acceptance_rate=p_accept, is_accepted=do_accept)
-
-    return kernel
-
-
-def _weighted_scale_diag(particles: np.ndarray, weights: np.ndarray, *, clip: float) -> np.ndarray:
-    """Diagonal proposal scale from the weighted particle spread (u-space).
-
-    Returns the per-dimension weighted std, normalized to unit geometric mean (so
-    the scalar step size keeps a single meaning across stages) and clipped to
-    ``[1/clip, clip]`` (a collapsed or runaway dimension must not distort the rest).
-    """
-    p = np.asarray(particles, dtype=np.float64)
-    w = np.asarray(weights, dtype=np.float64).reshape(-1)
-    if not np.all(np.isfinite(w)) or w.sum() <= 0.0:
-        return np.ones(p.shape[1], dtype=np.float64)
-    w = w / w.sum()
-    mean = w @ p
-    var = w @ np.square(p - mean[None, :])
-    scale = np.sqrt(np.maximum(var, 1.0e-12))
-    scale = scale / np.exp(np.mean(np.log(scale)))
-    clip = float(clip)
-    return np.clip(scale, 1.0 / clip, clip)
-
-
 def tune_mcmc_step_size(pipe: Pipeline, rng_key) -> float:
     """Auto-tune MALA/HMC step size in u-space with a small pilot run (Robbins-Monro)."""
     cfg = pipe.cfg
@@ -1421,22 +1255,6 @@ def build_smc_algorithm(pipe: Pipeline, *, step_size_override: Optional[float] =
     else:
         raise ValueError(f"Unknown cfg.smc_mcmc_kernel={cfg.smc_mcmc_kernel!r}")
 
-    logger.info(f"Building adaptive tempered SMC: kernel={kernel}, N={N}, "
-                f"target_ess_frac={float(cfg.smc_target_ess_frac):.3f}, "
-                f"num_mcmc_steps={cfg.smc_num_mcmc_steps}, step_size={step:.4g}")
-
-    return _build_smc_from_parts(pipe, mcmc_step_fn=mcmc_step_fn, mcmc_init_fn=mcmc_init_fn,
-                                 mcmc_parameters=mcmc_parameters)
-
-
-def _build_smc_from_parts(pipe: Pipeline, *, mcmc_step_fn, mcmc_init_fn, mcmc_parameters):
-    """Assemble the BlackJAX adaptive-tempered-SMC API from explicit mutation parts.
-
-    Jit-safe: contains no Python coercions of ``mcmc_parameters`` values, so those
-    may be traced arrays (the per-stage-adaptation path rebuilds the algorithm
-    inside a jitted step with traced step size / proposal scale).
-    """
-    cfg = pipe.cfg
     resampling_name = str(cfg.smc_resampling).strip().lower()
     resampling_fn = {"systematic": smc_resampling_mod.systematic,
                      "stratified": smc_resampling_mod.stratified,
@@ -1445,6 +1263,9 @@ def _build_smc_from_parts(pipe: Pipeline, *, mcmc_step_fn, mcmc_init_fn, mcmc_pa
     target_ess_frac = float(cfg.smc_target_ess_frac)
     if (not math.isfinite(target_ess_frac)) or target_ess_frac <= 0.0 or target_ess_frac > 1.0:
         raise ValueError(f"cfg.smc_target_ess_frac must be in (0, 1]. Got {cfg.smc_target_ess_frac!r}.")
+
+    logger.info(f"Building adaptive tempered SMC: kernel={kernel}, N={N}, target_ess_frac={target_ess_frac:.3f}, "
+                f"num_mcmc_steps={cfg.smc_num_mcmc_steps}, step_size={step:.4g}")
 
     return smc_adaptive_tempered.as_top_level_api(
         logprior_fn=pipe.log_prior_u, loglikelihood_fn=pipe.loglikelihood_for_blackjax,
@@ -1461,85 +1282,32 @@ def run_smc_loop(pipe: Pipeline, *, key, progress: bool = True,
     Tuning (if enabled) happens here.
     """
     cfg = pipe.cfg
-    dtype = pipe.dtype
-    n_dim = int(pipe.n_dim)
-    N = int(cfg.smc_num_particles)
-    kernel_name = str(cfg.smc_mcmc_kernel).strip().lower()
-    stage_adapt = bool(cfg.mcmc_stage_adapt)
-
     key, subkey = jax.random.split(key)
-    particles0 = pipe.sample_prior_u(subkey, N)
+    particles0 = pipe.sample_prior_u(subkey, int(cfg.smc_num_particles))
 
     tuned_step_size: Optional[float] = None
-    if bool(cfg.mcmc_auto_tune) and not stage_adapt:
+    if bool(cfg.mcmc_auto_tune):
         key, tune_key = jax.random.split(key)
         tuned_step_size = tune_mcmc_step_size(pipe, tune_key)
-    elif stage_adapt and bool(cfg.mcmc_auto_tune):
-        logger.info("mcmc_stage_adapt=True: skipping the one-shot pilot tuner (it tunes the "
-                    "unpreconditioned kernel at a fixed beta); seeding adaptation from cfg.mala_step_size.")
 
+    kernel_name = str(cfg.smc_mcmc_kernel).strip().lower()
     step_used = (float(cfg.mala_step_size) if kernel_name == "mala" else float(cfg.hmc_step_size)) \
         if tuned_step_size is None else float(tuned_step_size)
 
-    # Per-stage adaptation state (MALA only, enforced by validate_config).
-    step_min, step_max = float(cfg.mcmc_step_size_min), float(cfg.mcmc_step_size_max)
-    adapt_gain = float(cfg.mcmc_stage_adapt_gain)
-    adapt_target = float(cfg.mcmc_target_accept_mala)
-    log_step = math.log(min(max(step_used, step_min), step_max))
-    scale_diag = np.ones(n_dim, dtype=np.float64)
-
-    if stage_adapt:
-        scale_diag = _weighted_scale_diag(np.asarray(jax.device_get(particles0)),
-                                          np.full((N,), 1.0 / N), clip=cfg.mcmc_scale_clip)
-        precond_kernel = _build_preconditioned_mala_kernel()
-
-        def _smc_step_adaptive(key_in, state_in, step_size, scale_vec):
-            params = {
-                "step_size": jnp.full((N,), step_size, dtype=dtype),
-                "scale_diag": jnp.broadcast_to(jnp.asarray(scale_vec, dtype=dtype)[None, :], (N, n_dim)),
-            }
-            smc_t = _build_smc_from_parts(pipe, mcmc_step_fn=precond_kernel,
-                                          mcmc_init_fn=blackjax.mala.init, mcmc_parameters=params)
-            return smc_t.step(key_in, state_in)
-
-        logger.info(f"Building adaptive tempered SMC: kernel=mala+precond, N={N}, "
-                    f"target_ess_frac={float(cfg.smc_target_ess_frac):.3f}, "
-                    f"num_mcmc_steps={cfg.smc_num_mcmc_steps}, per-stage step adaptation "
-                    f"(seed step={math.exp(log_step):.4g}, target_accept={adapt_target:.2f}, gain={adapt_gain:.2f})")
-        smc_step = jax.jit(_smc_step_adaptive)
-        smc = _build_smc_from_parts(
-            pipe, mcmc_step_fn=precond_kernel, mcmc_init_fn=blackjax.mala.init,
-            mcmc_parameters={"step_size": jnp.full((N,), math.exp(log_step), dtype=dtype),
-                             "scale_diag": jnp.tile(jnp.asarray(scale_diag, dtype=dtype)[None, :], (N, 1))})
-        state = smc.init(particles0)
-
-        def _do_step(key_in, state_in):
-            return smc_step(key_in, state_in,
-                            jnp.asarray(math.exp(log_step), dtype=dtype),
-                            jnp.asarray(scale_diag, dtype=dtype))
-    else:
-        smc = build_smc_algorithm(pipe, step_size_override=step_used)
-        smc_step = jax.jit(smc.step)
-        state = smc.init(particles0)
-
-        def _do_step(key_in, state_in):
-            return smc_step(key_in, state_in)
+    smc = build_smc_algorithm(pipe, step_size_override=step_used)
+    smc_step = jax.jit(smc.step)
+    state = smc.init(particles0)
 
     key, subkey = jax.random.split(key)
     try:
-        if stage_adapt:
-            smc_step.lower(subkey, state, jnp.asarray(math.exp(log_step), dtype=dtype),
-                           jnp.asarray(scale_diag, dtype=dtype)).compile()
-        else:
-            smc_step.lower(subkey, state).compile()
+        smc_step.lower(subkey, state).compile()
     except Exception:
-        _s, _i = _do_step(subkey, state)
+        _s, _i = smc_step(subkey, state)
         jax.block_until_ready(_s)
         state = smc.init(particles0)
 
     betas: List[float] = [0.0]
     ess_hist, acc_hist, logz_inc_hist = [], [], []
-    step_hist, uniq_hist = [], []
 
     iterator = range(int(cfg.smc_max_steps))
     if progress:
@@ -1550,9 +1318,8 @@ def run_smc_loop(pipe: Pipeline, *, key, progress: bool = True,
             pass
 
     for i in iterator:
-        step_now = math.exp(log_step)
         key, subkey = jax.random.split(key)
-        state, info = _do_step(subkey, state)
+        state, info = smc_step(subkey, state)
         jax.block_until_ready(state)
         beta = float(jax.device_get(state.tempering_param))
         w = state.weights
@@ -1564,22 +1331,9 @@ def run_smc_loop(pipe: Pipeline, *, key, progress: bool = True,
             acc = float(jax.device_get(jnp.mean(info.update_info.acceptance_rate)))
         except Exception:
             pass
-        particles_np = np.asarray(jax.device_get(state.particles), dtype=np.float64)
-        n_unique = int(np.unique(particles_np, axis=0).shape[0])
-        if stage_adapt:
-            # Robbins-Monro on log step toward the target acceptance, then refresh
-            # the diagonal preconditioner from the mutated particle cloud. Both feed
-            # the NEXT stage; this stage's settings are already spent.
-            if math.isfinite(acc):
-                log_step += adapt_gain * (acc - adapt_target)
-                log_step = math.log(min(max(math.exp(log_step), step_min), step_max))
-            scale_diag = _weighted_scale_diag(particles_np, np.asarray(jax.device_get(state.weights)),
-                                              clip=cfg.mcmc_scale_clip)
         betas.append(beta)
         ess_hist.append(ess)
         acc_hist.append(acc)
-        step_hist.append(step_now)
-        uniq_hist.append(n_unique)
         logz_inc = float("nan")
         for kn in ("log_likelihood_increment", "logZ_increment", "log_normalizer_increment"):
             if hasattr(info, kn):
@@ -1591,9 +1345,7 @@ def run_smc_loop(pipe: Pipeline, *, key, progress: bool = True,
         logz_inc_hist.append(logz_inc)
         if hasattr(iterator, "set_postfix"):
             iterator.set_postfix(beta=f"{beta:.2e}", ess=f"{ess:.1f}", acc=f"{acc:.3f}")
-        logger.info(f"SMC step {i:03d}: beta={beta:.3e}, ESS={ess:.1f}/{cfg.smc_num_particles}, "
-                    f"mean_accept={acc:.3f}, unique={n_unique}/{N}"
-                    + (f", step_size={step_now:.4g} -> {math.exp(log_step):.4g}" if stage_adapt else ""))
+        logger.info(f"SMC step {i:03d}: beta={beta:.3e}, ESS={ess:.1f}/{cfg.smc_num_particles}, mean_accept={acc:.3f}")
         if checkpoint_path is not None:
             theta_ckpt = jax.vmap(pipe.theta_from_u)(state.particles)
             ckpt_tmp = checkpoint_path.with_suffix(".tmp.npz")
@@ -1605,10 +1357,7 @@ def run_smc_loop(pipe: Pipeline, *, key, progress: bool = True,
                      ess=np.asarray(ess_hist, dtype=np.float64),
                      acceptance_rate=np.asarray(acc_hist, dtype=np.float64),
                      logZ_increment=np.asarray(logz_inc_hist, dtype=np.float64),
-                     step_size_used=np.asarray(step_hist[-1], dtype=np.float64),
-                     step_size_history=np.asarray(step_hist, dtype=np.float64),
-                     unique_particles=np.asarray(uniq_hist, dtype=np.int64),
-                     scale_diag=np.asarray(scale_diag, dtype=np.float64),
+                     step_size_used=np.asarray(step_used, dtype=np.float64),
                      last_step=np.asarray(i, dtype=np.int64))
             ckpt_tmp.replace(checkpoint_path)
         if beta >= 1.0 - 1e-8:
@@ -1625,16 +1374,12 @@ def run_smc_loop(pipe: Pipeline, *, key, progress: bool = True,
     theta_np = np.asarray(theta_draws, dtype=np.float64).reshape((int(cfg.num_chains), int(cfg.num_samples), pipe.n_dim))
 
     return dict(
-        state=state, reached_beta1=reached, final_beta=final_beta,
-        step_size_used=(float(step_hist[-1]) if step_hist else step_used),
+        state=state, reached_beta1=reached, final_beta=final_beta, step_size_used=step_used,
         betas=np.asarray(betas, dtype=np.float64),
         ess=np.asarray(ess_hist, dtype=np.float64),
         acceptance_rate=np.asarray(acc_hist, dtype=np.float64),
         logZ_increment=np.asarray(logz_inc_hist, dtype=np.float64),
         final_weights=np.asarray(jax.device_get(state.weights), dtype=np.float64),
-        step_size_history=np.asarray(step_hist, dtype=np.float64),
-        unique_particles=np.asarray(uniq_hist, dtype=np.int64),
-        scale_diag_final=np.asarray(scale_diag, dtype=np.float64),
         theta_draws=theta_np, u_draws=np.asarray(jax.device_get(u_draws), dtype=np.float64),
     )
 

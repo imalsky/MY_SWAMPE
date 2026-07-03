@@ -37,23 +37,6 @@ RAMP_INTEGRATIONS = 779
 ERROR_INFLATION = 1.25
 PRIMARY_TRANSIT_HALF_WIDTH_DAYS = 0.06
 TARGET_BINS = 320
-# --- secondary-eclipse ingress/egress masking -------------------------------
-# The retrieval's eclipse model (jaxoplanet, fixed geometry, no timing freedom)
-# mismatches the sharp observed contacts by a few minutes, producing -1000 to
-# -1500 ppm (~15-19 sigma) residual spikes confined to ingress/egress in the
-# 2026-07 pilot. Those few points dominate the chi^2 and inflate the fitted
-# noise-inflation parameter, so we mask the contact windows (standard practice
-# for phase-curve retrievals with a fixed eclipse model). In-eclipse and
-# out-of-eclipse points are all kept. Geometry: Esposito et al. 2017 (A&A 601,
-# A53) - the same values fixed in the retrieval config; e=0 (Bell et al. 2024).
-STAR_MASS_MSUN = 0.688
-STAR_RADIUS_RSUN = 0.6506
-PLANET_RADIUS_RJUP = 1.006
-IMPACT_PARAM = 0.689
-ECLIPSE_EDGE_PAD_DAYS = 0.002  # ~ one 320-bin spacing on each side of a contact
-GM_SUN = 1.32712440018e20  # m^3/s^2
-R_SUN_M = 6.957e8
-R_JUP_M = 7.1492e7  # IAU nominal equatorial (matches the retrieval's RJUP_TO_RSUN)
 # Stellar effective temperature for the per-channel stellar-Planck correction of
 # the band weights (Bonomo et al. 2017, as adopted by Bell et al. 2024).
 T_STAR_K = 4400.0
@@ -79,40 +62,6 @@ def nearest_transit_time_mjd(times_mjd: np.ndarray) -> float:
 def centered_orbital_phase_days(times_days: np.ndarray) -> np.ndarray:
     """Return time from nearest primary transit in days, in [-P/2, P/2)."""
     return (times_days + 0.5 * PERIOD_DAYS) % PERIOD_DAYS - 0.5 * PERIOD_DAYS
-
-
-def eclipse_contact_half_durations_days() -> Tuple[float, float]:
-    """Half-durations (days) of the secondary eclipse: (contact1-4, contact2-3).
-
-    Circular orbit, occultation geometry identical to the transit's (e=0), with
-    the semi-major axis from Kepler's third law (planet mass negligible):
-    T14 = P/pi * asin( sqrt((1+k)^2 - b^2) / (a/R* sin i) ), T23 likewise with
-    (1-k)^2. Seager & Mallen-Ornelas 2003, eq. 3.
-    """
-    period_s = PERIOD_DAYS * 86400.0
-    a_m = (GM_SUN * STAR_MASS_MSUN * period_s**2 / (4.0 * math.pi**2)) ** (1.0 / 3.0)
-    a_over_rstar = a_m / (STAR_RADIUS_RSUN * R_SUN_M)
-    k = (PLANET_RADIUS_RJUP * R_JUP_M) / (STAR_RADIUS_RSUN * R_SUN_M)
-    b = IMPACT_PARAM
-    cos_i = b / a_over_rstar
-    sin_i = math.sqrt(1.0 - cos_i**2)
-    x14 = math.sqrt((1.0 + k) ** 2 - b**2) / (a_over_rstar * sin_i)
-    x23 = math.sqrt((1.0 - k) ** 2 - b**2) / (a_over_rstar * sin_i)
-    t14 = PERIOD_DAYS / math.pi * math.asin(min(x14, 1.0))
-    t23 = PERIOD_DAYS / math.pi * math.asin(min(x23, 1.0))
-    return 0.5 * t14, 0.5 * t23
-
-
-def eclipse_edge_mask(phase_days: np.ndarray, *, pad_days: float) -> np.ndarray:
-    """True for points inside the eclipse ingress/egress contact windows (+/- pad).
-
-    ``phase_days`` is time from primary transit folded to [-P/2, P/2); the
-    eclipse center sits at the +/-P/2 wrap point, so the distance from eclipse
-    center is d = P/2 - |phase|. Ingress/egress is T23/2 <= d <= T14/2.
-    """
-    half14, half23 = eclipse_contact_half_durations_days()
-    d = 0.5 * PERIOD_DAYS - np.abs(np.asarray(phase_days, dtype=np.float64))
-    return (d >= half23 - float(pad_days)) & (d <= half14 + float(pad_days))
 
 
 def combine_spectral_channels(
@@ -193,24 +142,6 @@ def band_model_weights(
     return wl_sel, w_model, lambda_eff_um
 
 
-def _bin_sorted(
-    times_sorted: np.ndarray,
-    flux_sorted: np.ndarray,
-    err_sorted: np.ndarray,
-    n_bins: int,
-) -> Tuple[list, list, list]:
-    """Inverse-variance-bin an already-sorted segment into ``n_bins`` bins (>= 1)."""
-    time_out, flux_out, err_out = [], [], []
-    for group in np.array_split(np.arange(times_sorted.size), int(n_bins)):
-        sigma = err_sorted[group]
-        weights = 1.0 / np.square(sigma)
-        sum_weights = np.sum(weights)
-        time_out.append(float(np.sum(weights * times_sorted[group]) / sum_weights))
-        flux_out.append(float(np.sum(weights * flux_sorted[group]) / sum_weights))
-        err_out.append(float(math.sqrt(1.0 / sum_weights)))
-    return time_out, flux_out, err_out
-
-
 def inverse_variance_bin(
     times_days: np.ndarray,
     flux: np.ndarray,
@@ -220,63 +151,26 @@ def inverse_variance_bin(
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Bin a time series into approximately equal-count inverse-variance bins."""
     order = np.argsort(times_days)
-    n_bins = min(int(target_bins), times_days.size)
+    times_sorted = times_days[order]
+    flux_sorted = flux[order]
+    err_sorted = err[order]
+
+    n_bins = min(int(target_bins), times_sorted.size)
     if n_bins < 2:
         raise ValueError("Need at least two valid points after masking.")
-    time_out, flux_out, err_out = _bin_sorted(times_days[order], flux[order], err[order], n_bins)
+
+    time_out = []
+    flux_out = []
+    err_out = []
+    for group in np.array_split(np.arange(times_sorted.size), n_bins):
+        sigma = err_sorted[group]
+        weights = 1.0 / np.square(sigma)
+        sum_weights = np.sum(weights)
+        time_out.append(float(np.sum(weights * times_sorted[group]) / sum_weights))
+        flux_out.append(float(np.sum(weights * flux_sorted[group]) / sum_weights))
+        err_out.append(float(math.sqrt(1.0 / sum_weights)))
+
     return np.asarray(time_out), np.asarray(flux_out), np.asarray(err_out)
-
-
-def segmented_inverse_variance_bin(
-    times_days: np.ndarray,
-    flux: np.ndarray,
-    err: np.ndarray,
-    keep_sorted_positions: np.ndarray,
-    *,
-    target_bins: int,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, list]:
-    """Inverse-variance binning that never lets a bin straddle a masked gap.
-
-    ``times_days``/``flux``/``err`` are the RETAINED points in time order;
-    ``keep_sorted_positions`` gives each retained point's index in the full
-    time-sorted (pre-mask) series, so a jump > 1 marks a masked gap (ramp,
-    primary transit, eclipse contact window). Points are split into contiguous
-    segments at those gaps and each segment is binned separately — an
-    equal-count bin averaging flux across an eclipse-contact gap would mix
-    out-of-eclipse and in-eclipse flux (~the eclipse depth apart), recreating
-    exactly the contact-window artifact the mask removes.
-
-    ``target_bins`` is allocated across segments proportionally to their point
-    counts (largest-remainder rounding, >= 1 bin and <= n_points per segment).
-    Returns (times, flux, err, segment_sizes_in_bins).
-    """
-    pos = np.asarray(keep_sorted_positions, dtype=np.int64)
-    n = pos.size
-    if n < 2:
-        raise ValueError("Need at least two valid points after masking.")
-    breaks = np.nonzero(np.diff(pos) > 1)[0] + 1
-    segments = np.split(np.arange(n), breaks)
-
-    total = float(n)
-    raw = [int(target_bins) * len(s) / total for s in segments]
-    n_bins = [min(len(s), max(1, int(math.floor(r)))) for r, s in zip(raw, segments)]
-    # largest-remainder distribution of the shortfall
-    frac_order = sorted(range(len(segments)), key=lambda i: raw[i] - math.floor(raw[i]), reverse=True)
-    k = 0
-    while sum(n_bins) < min(int(target_bins), int(total)) and k < 10 * len(segments):
-        i = frac_order[k % len(segments)]
-        if n_bins[i] < len(segments[i]):
-            n_bins[i] += 1
-        k += 1
-
-    time_out, flux_out, err_out, seg_bins = [], [], [], []
-    for seg, nb in zip(segments, n_bins):
-        t, f, e = _bin_sorted(times_days[seg], flux[seg], err[seg], nb)
-        time_out += t
-        flux_out += f
-        err_out += e
-        seg_bins.append(int(nb))
-    return np.asarray(time_out), np.asarray(flux_out), np.asarray(err_out), seg_bins
 
 
 def load_and_prepare(
@@ -289,8 +183,6 @@ def load_and_prepare(
     primary_transit_half_width_days: float = PRIMARY_TRANSIT_HALF_WIDTH_DAYS,
     wavelength_min_um: float = WAVELENGTH_MIN_UM,
     wavelength_max_um: float = WAVELENGTH_MAX_UM,
-    mask_eclipse_edges: bool = True,
-    eclipse_edge_pad_days: float = ECLIPSE_EDGE_PAD_DAYS,
 ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
     """Load the reduced MIRI light curve and return SWAMP-ready observations."""
     h5_bytes = read_h5_bytes(input_path, member)
@@ -322,23 +214,12 @@ def load_and_prepare(
     finite = np.isfinite(times_days) & np.isfinite(flux_white) & np.isfinite(err_white) & (err_white > 0.0)
     ramp_mask = np.arange(times_days.size) < int(ramp_integrations)
     primary_mask = np.abs(phase_days) < float(primary_transit_half_width_days)
-    if mask_eclipse_edges:
-        edge_mask = eclipse_edge_mask(phase_days, pad_days=eclipse_edge_pad_days)
-    else:
-        edge_mask = np.zeros_like(primary_mask)
-    keep = finite & (~ramp_mask) & (~primary_mask) & (~edge_mask)
+    keep = finite & (~ramp_mask) & (~primary_mask)
 
-    # Segment-aware binning: bins are split at every masked gap so no bin ever
-    # averages flux across the primary transit or an eclipse contact window.
-    order = np.argsort(times_days)
-    keep_sorted = keep[order]
-    sorted_positions = np.nonzero(keep_sorted)[0]
-    kept_idx = order[keep_sorted]
-    binned_time, binned_flux, binned_err, segment_bins = segmented_inverse_variance_bin(
-        times_days[kept_idx],
-        flux_white[kept_idx],
-        err_white[kept_idx],
-        sorted_positions,
+    binned_time, binned_flux, binned_err = inverse_variance_bin(
+        times_days[keep],
+        flux_white[keep],
+        err_white[keep],
         target_bins=target_bins,
     )
     binned_err = binned_err * float(error_inflation)
@@ -366,27 +247,8 @@ def load_and_prepare(
         "n_masked_ramp": int(np.sum(ramp_mask)),
         "n_masked_ramp_finite": int(np.sum(ramp_mask & finite)),
         "n_masked_primary_transit": int(np.sum(primary_mask & finite & (~ramp_mask))),
-        "eclipse_edge_mask_applied": bool(mask_eclipse_edges),
-        "n_masked_eclipse_edges": int(np.sum(edge_mask & finite & (~ramp_mask) & (~primary_mask))),
-        "eclipse_edge_pad_days": float(eclipse_edge_pad_days),
-        "eclipse_contact_half_durations_days": {
-            "t14_half": eclipse_contact_half_durations_days()[0],
-            "t23_half": eclipse_contact_half_durations_days()[1],
-        },
-        "eclipse_edge_geometry": {
-            "star_mass_msun": STAR_MASS_MSUN,
-            "star_radius_rsun": STAR_RADIUS_RSUN,
-            "planet_radius_rjup": PLANET_RADIUS_RJUP,
-            "impact_param": IMPACT_PARAM,
-            "source": "Esposito et al. 2017 (A&A 601, A53); e=0",
-            "rationale": "fixed-geometry eclipse model mismatches observed contacts by a few min; "
-                         "masking the ingress/egress windows removes ~15-19 sigma residual spikes "
-                         "(2026-07 pilot) that otherwise dominate chi^2 and inflate noise_inflation",
-        },
         "n_retained_unbinned": int(np.sum(keep)),
         "n_binned": int(binned_time.size),
-        "n_bin_segments": len(segment_bins),
-        "bins_per_segment": [int(x) for x in segment_bins],
         "target_bins": int(target_bins),
         "error_inflation": float(error_inflation),
         "primary_transit_half_width_days": float(primary_transit_half_width_days),
@@ -431,17 +293,6 @@ def parse_args() -> argparse.Namespace:
         default=PRIMARY_TRANSIT_HALF_WIDTH_DAYS,
         help="Mask half-width around primary transits.",
     )
-    parser.add_argument(
-        "--no-eclipse-edge-mask",
-        action="store_true",
-        help="Keep the secondary-eclipse ingress/egress points (masked by default).",
-    )
-    parser.add_argument(
-        "--eclipse-edge-pad-days",
-        type=float,
-        default=ECLIPSE_EDGE_PAD_DAYS,
-        help="Padding added on each side of the eclipse contact windows before masking.",
-    )
     return parser.parse_args()
 
 
@@ -458,8 +309,6 @@ def main() -> None:
         ramp_integrations=args.ramp_integrations,
         error_inflation=args.error_inflation,
         primary_transit_half_width_days=args.primary_transit_half_width_days,
-        mask_eclipse_edges=not args.no_eclipse_edge_mask,
-        eclipse_edge_pad_days=args.eclipse_edge_pad_days,
     )
     provenance["output_path"] = str(args.output)
     save_observations(args.output, observations)

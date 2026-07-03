@@ -5,8 +5,11 @@ numerical core runs inside `jax.lax.scan`, so the forward simulation is
 end‑to‑end differentiable with respect to continuous physical parameters and
 explicit initial conditions.
 
-- **Numerical parity** with reference NumPy SWAMPE for default settings
-  (≤ 1e-10 atol on `eta`/`delta`, ≤ 5e-8 atol on `Phi`).
+- **Numerical parity** with reference NumPy SWAMPE for default settings:
+  ≤ 1e-10 atol on `eta`/`delta` and ≤ 5e-8 atol on `Phi` over short
+  reference-fixture runs; ≤ 2×10⁻⁵ % relative error over a 100-day forced,
+  synchronously rotating benchmark integration (see the
+  [paper](paper/paper.tex)).
 - **Drop-in API**: `from my_swamp.model import run_model` works as a
   replacement for `from SWAMPE.model import run_model`.
 - **Differentiable**: `jax.grad`, `jax.jvp`, `jax.jit`, `jax.vmap` work on
@@ -22,7 +25,7 @@ Document version: 2026-06-30
 ## Citation
 
 If you use `my_swamp` in your research, please cite the accompanying software
-paper (in preparation for the Journal of Open Source Software; the LaTeX source
+paper (submitted to the Journal of Open Source Software; the LaTeX source
 lives in [`paper/paper.tex`](paper/paper.tex)) together with the original SWAMPE
 model on which this port is based:
 
@@ -42,13 +45,14 @@ model on which this port is based:
 6. [Plotting and Visualization](#6-plotting-and-visualization)
 7. [Behavior Relative to NumPy SWAMPE](#7-behavior-relative-to-numpy-swampe)
 8. [Legacy Physics and Numerics Preserved for Parity](#8-legacy-physics-and-numerics-preserved-for-parity)
-9. [Physics and Numerics Changes Not Implemented Here](#9-physics-and-numerics-changes-not-implemented-here)
-10. [Differentiability Scope and Caveats](#10-differentiability-scope-and-caveats)
-11. [GPU, Precision, and Performance Notes](#11-gpu-precision-and-performance-notes)
-12. [Reliability Helpers](#12-reliability-helpers)
-13. [Testing and Parity Checks](#13-testing-and-parity-checks)
-14. [Known Limitations](#14-known-limitations)
-15. [Code Navigation Guide](#15-code-navigation-guide)
+9. [Opt-in Numerics Modes (Off by Default)](#9-opt-in-numerics-modes-off-by-default)
+10. [Physics and Numerics Changes Not Implemented Here](#10-physics-and-numerics-changes-not-implemented-here)
+11. [Differentiability Scope and Caveats](#11-differentiability-scope-and-caveats)
+12. [GPU, Precision, and Performance Notes](#12-gpu-precision-and-performance-notes)
+13. [Reliability Helpers](#13-reliability-helpers)
+14. [Testing and Parity Checks](#14-testing-and-parity-checks)
+15. [Known Limitations](#15-known-limitations)
+16. [Code Navigation Guide](#16-code-navigation-guide)
 
 ---
 
@@ -113,7 +117,7 @@ MY_SWAMP/
 │       ├── continuation.py          # Pickle I/O for save/load/continuation
 │       ├── plotting.py              # Matplotlib helpers + GIF generation (lazy import)
 │       └── autodiff_utils.py        # Forward-mode utilities (JVP chunking)
-├── unit_tests/                      # Pytest suite (see §13 for the test matrix)
+├── unit_tests/                      # Pytest suite (see §14 for the test matrix)
 │   └── fixtures/                    # SWAMPE-generated reference snapshots (.npz)
 ├── scripts/                         # General-purpose, NOT paper-specific (not pytest-collected)
 │   ├── benchmark_scan.py                # forward-scan wall-clock microbenchmark
@@ -505,12 +509,19 @@ The plotting module provides helpers for GIF generation using `imageio`. See `sr
 ## 7. Behavior Relative to NumPy SWAMPE
 
 This implementation preserves the SWAMPE numerics for default settings.
-Cross-validated against the NumPy SWAMPE reference, the JAX rewrite agrees
-to within:
+Cross-validated against the NumPy SWAMPE reference over short fixture runs
+(a few timesteps; see `unit_tests/test_parity_reference_regression.py`), the
+JAX rewrite agrees to within:
 
 - ≤ 1e-10 absolute on `eta` and `delta`
 - ≤ 5e-8 absolute on `Phi`
 - ≤ 1e-9 absolute on `U` and `V`
+
+Over a full 100-day forced, synchronously rotating integration (the paper's
+benchmark; see [`paper/paper.tex`](paper/paper.tex)), relative error grows to
+at most 2×10⁻⁵ % across all fields — still close agreement, but a different
+(longer-horizon, relative-error) metric than the short-run absolute
+tolerances above; the two are not directly comparable.
 
 Specifically preserved:
 
@@ -558,7 +569,131 @@ delta tendency that uses `Bm+Fm` even in its unforced branch), see
 
 ---
 
-## 9. Physics and Numerics Changes Not Implemented Here
+## 9. Opt-in Numerics Modes (Off by Default)
+
+Two optional numerical upgrades are available on every driver
+(`run_model`, `run_model_scan`, `run_model_scan_final`). **Both are off by
+default, and the defaults are bit-identical to the locked reference-SWAMPE
+behavior** (verified by the parity suite plus dedicated identity tests).
+They exist because the package's downstream job is gradient-based retrieval:
+cheaper, stabler forward passes and cleaner long-integration energetics mean
+cheaper, cleaner gradients.
+
+### 9a. Semi-implicit gravity-wave scheme + exponential hyperdiffusion
+
+```python
+out = run_model_scan(..., semi_implicit=True)          # si_alpha=0.5 default
+```
+
+**What it is.** A semi-implicit leapfrog (Hoskins & Simmons 1975): only the
+*linear* gravity-wave coupling between divergence and geopotential is treated
+implicitly (vorticity is untouched — the linear operator is zero there).
+Because the Laplacian is diagonal in spherical-harmonic space, the implicit
+"solve" is a closed-form scalar per degree — no matrix, no iteration, and
+fully differentiable:
+
+```
+xi        = 2*si_alpha*dt                    # si_alpha=0.5 → centered
+S_l       = 1 / (1 + xi²·Φ̄·l(l+1)/a²)
+δ_new     = S_l·(δ* + xi·(l(l+1)/a²)·Φ*)
+Φ_new     = Φ* − xi·Φ̄·δ_new
+```
+
+Two further linear terms join the same closed-form solve in forced mode
+(leapfrog is unstable for damping evaluated at the centered level, and the
+retrieval prior box reaches `tau = 0.5 h`): the Newtonian relaxation
+`−Φ/tau_rad` and the Rayleigh drag `−(η−f)/tau_drag`, `−δ/tau_drag` are
+treated implicitly, and the remaining *nonlinear* mass-source momentum terms
+are evaluated at the lagged leapfrog level (Williamson-style physics
+lagging). See `semi_implicit_tdiff.py` for the full scheme.
+
+It is paired with **exponential (integrating-factor) hyperdiffusion**
+(`filters.sigma6_exponential` / `sigma6Phi_exponential`):
+`x_l → x_l·exp(−2·dt·K6·(l(l+1))³/a⁶)`, the *exact* solution of the ∇⁶
+operator over the step, unconditionally stable at any `dt` — so `K6` no
+longer needs retuning when the timestep or wave speed changes.
+
+**Why.** The explicit timestep is throttled by the gravity-wave speed
+`√Φ̄`, which in the hot-Jupiter regime (`Φ̄ ~ 4×10⁶`) is far faster than
+the winds. Treating exactly those terms implicitly moves the stability
+limit to the advective CFL: an order of magnitude fewer scan steps for the
+same physical integration, which cuts both forward cost and gradient
+cost/memory proportionally.
+
+**Notes.**
+
+- Opt-in only: it changes the time discretization, so it is *not*
+  bit-identical to NumPy SWAMPE. The modified-Euler scheme remains the
+  locked default. Incompatible with `expflag=True`.
+- In this mode the Robert–Asselin filter is also applied to the spectral
+  (Fourier) carries — the leapfrog scheme reads them as its n−1 base, so
+  the locked default's deliberate filter desync (CLAUDE.md §3 item 10)
+  would corrupt it.
+- `si_alpha` (implicitness; JAX-traced, differentiable) can be raised
+  slightly above 0.5 to damp gravity-wave noise at very large `dt`.
+- Quantified on the WASP-43b retrieval regime (`Φ̄=4e6`, default `K6`;
+  reproduce via `scripts/benchmark_new_numerics.py`): stable at
+  `dt=3600 s` vs the explicit production `dt=120 s`; **12× forward and 10×
+  gradient wall-clock** at `dt=1200`; the equilibrated state is
+  dt-converged to ~1e-5 from `dt=120` to `2400`. Against the explicit
+  production reference the semi-implicit equilibrium has an identical
+  hot-spot offset and a ~4.6% smaller day-night amplitude (a fixed
+  scheme-level difference from the locked forced-mode quirks, CLAUDE.md §3
+  items 1–3) — so use one scheme consistently within a retrieval.
+- **Regime limit**: the dt gain shrinks as the day-night contrast
+  `DPhieq/Φ̄` approaches/exceeds 1, where nightside thickness collapse
+  makes the mass-source term genuinely singular — in the super-contrast
+  synthetic regime (`DPhieq/Φ̄=3.3`) the ceiling is `dt≈240 s` with
+  `alpha=0.05`, scheme regardless. On the 16 corners of the WASP-43b prior
+  box (20 days): explicit `dt=120/K6=5e33` is 14/16 stable (fails the
+  fast-wave/no-damping corners); semi-implicit `dt=600`, RAW `alpha=0.05`,
+  default `K6` is 13/16 — including both corners that kill the explicit
+  solver; its 3 failures are the contrast-2.5 collapse corners, which are
+  strongly data-excluded.
+
+### 9b. Robert–Asselin–Williams (RAW) time filter
+
+```python
+out = run_model_scan(..., raw_filter=True)             # williams_alpha=0.53 default
+```
+
+**What it is.** Williams' (2009) one-line upgrade to the classic
+Robert–Asselin filter already applied for `t > 2`. With displacement
+`d = x_prev − 2·x_curr + x_new` and the SWAMPE filter coefficient `alpha`:
+
+```
+x_curr_filtered = x_curr + alpha·williams_alpha·d          # classic RA when williams_alpha=1
+x_new_adjusted  = x_new  − alpha·(1−williams_alpha)·d      # the Williams term
+```
+
+The added term applies the same displacement with opposite sign to the new
+level, restoring conservation of the three-time-level mean: classic RA
+(first-order amplitude accuracy, artificially damps the *physical* mode)
+becomes third-order accurate in amplitude. Better long-integration
+energetics for free — three elementwise operations per field.
+
+**Notes.**
+
+- `raw_filter=True, williams_alpha=1.0` reproduces the classic filter
+  **bit-for-bit** (regression-tested in `unit_tests/test_raw_filter.py`);
+  `0.53` is Williams' optimum and the default when the mode is on.
+- `williams_alpha` is a JAX-traced scalar: differentiable, and it can vary
+  between calls without recompilation.
+- Composable with `semi_implicit=True` (recommended pairing for long
+  leapfrog integrations). Incompatible with `expflag=True`.
+- A quirk worth knowing (measured, bit-identical trajectories with
+  `alpha=0.01`, `alpha=0.4`, and `modalflag=False`): in the **default
+  modified-Euler scheme the classic RA filter never feeds back into the
+  dynamics at all** — it smooths only the `*_prev` carries, which the
+  two-level scheme never reads (this mirrors reference SWAMPE). The filter
+  does real work in the leapfrog `semi_implicit` mode, where the smoothed
+  previous level is the integration base — that is where the RAW upgrade
+  matters: robust corner settings there want `alpha≈0.05`, and the Williams
+  term is what keeps that much filtering from damping the physical mode.
+
+---
+
+## 10. Physics and Numerics Changes Not Implemented Here
 
 This codebase is focused on parity and differentiability; it does not
 implement:
@@ -569,7 +704,7 @@ implement:
 
 ---
 
-## 10. Differentiability Scope and Caveats
+## 11. Differentiability Scope and Caveats
 
 The simulation is differentiable with respect to:
 
@@ -599,7 +734,7 @@ listed in [`CLAUDE.md`](CLAUDE.md) §5.
 
 ---
 
-## 11. GPU, Precision, and Performance Notes
+## 12. GPU, Precision, and Performance Notes
 
 - For closest parity with NumPy SWAMPE, leave `SWAMPE_JAX_ENABLE_X64` enabled (default).
 - For faster runs, disable x64 (`SWAMPE_JAX_ENABLE_X64=0`), but expect larger numerical drift.
@@ -633,7 +768,7 @@ with `J * I` rather than `len(t_seq) * J * I`.
 
 ---
 
-## 12. Reliability Helpers
+## 13. Reliability Helpers
 
 ### 12a. Blowup gating during the scan
 
@@ -674,7 +809,7 @@ By default `assert_finite_state` raises `RuntimeError` on detection. Pass
 
 ---
 
-## 13. Testing and Parity Checks
+## 14. Testing and Parity Checks
 
 There are three levels of testing: the fast pytest suite for everyday
 development, a long-run parity script for validating numerical agreement
@@ -685,7 +820,7 @@ Current status: **36 tests, all passing on CPU x64 in ~30s.**
 
 ---
 
-### 13a. Unit Tests (pytest)
+### 14a. Unit Tests (pytest)
 
 Install the dev dependencies and run the full suite on CPU:
 
@@ -751,7 +886,7 @@ The test suite lives under `unit_tests/` and covers:
 
 ---
 
-### 13b. SWAMPE vs. MY_SWAMP Long-Run Parity Check (`compare_long_run_parity.py`)
+### 14b. SWAMPE vs. MY_SWAMP Long-Run Parity Check (`compare_long_run_parity.py`)
 
 This is the main tool for checking that `my_swamp` stays numerically close to the original NumPy SWAMPE reference over long integrations. It is not part of the pytest suite because a useful horizon (100 days) can take several minutes. It also doubles as the source of the JOSS paper's parity figure (100-day window) and CPU speed numbers (10-day window) -- see `paper/benchmark_data/README.md`. It lives in `paper/scripts/` (paper-specific tooling is self-contained under `paper/`; see CLAUDE.md SS2).
 
@@ -787,7 +922,7 @@ The script requires that the SWAMPE reference package is importable. It looks fo
 
 ---
 
-### 13c. Regenerating Reference Fixtures (`generate_reference_parity_fixtures.py`)
+### 14c. Regenerating Reference Fixtures (`generate_reference_parity_fixtures.py`)
 
 The regression tests in `test_parity_reference_regression.py` compare against stored `.npz` fixtures generated from the NumPy SWAMPE reference. If you change the numerics intentionally, regenerate them:
 
@@ -836,7 +971,7 @@ python scripts/benchmark_scan.py --require-x64
 
 ---
 
-## 14. Known Limitations
+## 15. Known Limitations
 
 - Supported resolutions are limited to `M in {42, 63, 106}` as defined in
   `initial_conditions.spectral_params`.
@@ -856,7 +991,7 @@ python scripts/benchmark_scan.py --require-x64
 
 ---
 
-## 15. Code Navigation Guide
+## 16. Code Navigation Guide
 
 | Topic | Primary locations |
 |---|---|

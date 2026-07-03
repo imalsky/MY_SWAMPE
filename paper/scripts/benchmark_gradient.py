@@ -4,7 +4,8 @@
 This is the reproducible source for the paper's differentiability performance
 claims: the cost of a reverse-mode gradient of a scalar loss with respect to the
 physical parameters, relative to a single forward integration, and the vmap
-ensemble throughput. It runs the forced hot-Jupiter regime of the parity figure.
+ensemble throughput. It runs the forced, synchronously rotating benchmark regime
+of the parity figure.
 
 The loss is the mean terminal geopotential, differentiated with respect to four
 physical controls (tau_rad, tau_drag, DPhieq, Phibar). Reverse-mode cost is
@@ -42,7 +43,8 @@ from my_swamp.model import run_model_scan_final  # noqa: E402
 
 jax.config.update("jax_enable_x64", True)
 
-# Forced hot-Jupiter regime (matches the parity and sensitivity figures).
+# Forced, synchronously rotating benchmark regime (matches the parity and
+# sensitivity figures).
 M = 42
 DT = 120.0
 DAY = 86400.0
@@ -95,7 +97,7 @@ def main() -> None:
 
     print(f"device={jax.devices()[0].platform} jax={jax.__version__} "
           f"machine={platform.processor() or platform.machine()}")
-    print(f"regime=forced_hot_jupiter M={M} dt={DT} days={args.days} tmax={tmax} "
+    print(f"regime=forced_default M={M} dt={DT} days={args.days} tmax={tmax} "
           f"n_params={THETA0.shape[0]} x64={jax.config.read('jax_enable_x64')}")
 
     t_fwd = _median_time(fwd, (THETA0,), args.warmup, args.repeats)

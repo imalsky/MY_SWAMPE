@@ -228,7 +228,10 @@ def velocity_init(
         Vic = -SU0 * jnp.sin(lam) * sina * sqrt_1m
     elif test == 2:
         Uic = SU0 * (sqrt_1m * cosa + jnp.cos(lam) * mu * sina)
-        Vic = -SU0 * (jnp.sin(lam) * sina)
+        # Value matches reference SWAMPE (latitude-independent), but the
+        # reference assigns it into a preallocated (J, I) array — broadcast
+        # explicitly, since nothing in the expression carries the J dimension.
+        Vic = jnp.broadcast_to(-SU0 * (jnp.sin(lam) * sina), (J, I))
     else:
         Uic = jnp.zeros((J, I), dtype=float_dtype())
         Vic = jnp.zeros((J, I), dtype=float_dtype())
@@ -274,7 +277,10 @@ def ABCDE_init(
     I = int(I)
     J = int(J)
 
-    mu = jnp.asarray(mus, dtype=float_dtype())[:, None]
+    # Preserve the caller's dtype: this runs inside the scan body, and forcing
+    # float_dtype() here would upcast a float32 (mixed-precision) state back to
+    # float64 under global x64. For float64 inputs this is unchanged.
+    mu = jnp.asarray(mus)[:, None]
     denom = 2.0 * (1.0 - mu**2)
 
     Aic = Uic * etaic0

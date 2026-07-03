@@ -9,6 +9,7 @@ from .dtypes import Scalar, float_dtype
 
 from . import explicit_tdiff as exp_tdiff
 from . import modEuler_tdiff as mod_tdiff
+from . import semi_implicit_tdiff as si_tdiff
 from . import spectral_transform as st
 
 
@@ -381,6 +382,110 @@ def tstepping(
         return newetamn, newetatstep, newetam, newdeltamn, newdeltatstep, newdeltam, newPhimn, newPhitstep, newPhim, Unew, Vnew, newUm, newVm
 
     return cond(expflag, do_explicit, do_modeuler, operand=None)
+
+
+def tstepping_semi_implicit(
+    Rum_lag: jnp.ndarray,
+    Rvm_lag: jnp.ndarray,
+    etam0: jnp.ndarray,
+    etam1: jnp.ndarray,
+    deltam0: jnp.ndarray,
+    deltam1: jnp.ndarray,
+    Phim0: jnp.ndarray,
+    Phim1: jnp.ndarray,
+    I: int,
+    J: int,
+    M: int,
+    N: int,
+    Am: jnp.ndarray,
+    Bm: jnp.ndarray,
+    Cm: jnp.ndarray,
+    Dm: jnp.ndarray,
+    Em: jnp.ndarray,
+    Fm: jnp.ndarray,
+    Gm: jnp.ndarray,
+    Um: jnp.ndarray,
+    Vm: jnp.ndarray,
+    fmn: jnp.ndarray,
+    Pmn: jnp.ndarray,
+    Hmn: jnp.ndarray,
+    Pmnw: jnp.ndarray,
+    Hmnw: jnp.ndarray,
+    tstepcoeff: jnp.ndarray,
+    tstepcoeff2: jnp.ndarray,
+    tstepcoeffmn: jnp.ndarray,
+    marray: jnp.ndarray,
+    mJarray: jnp.ndarray,
+    narray: jnp.ndarray,
+    PhiFm: jnp.ndarray,
+    dt: Scalar,
+    a: Scalar,
+    Phibar: Scalar,
+    taurad: Scalar,
+    taudrag: Scalar,
+    forcflag: bool,
+    diffflag: bool,
+    relax_implicit: bool,
+    sigma_exp: jnp.ndarray,
+    sigmaPhi_exp: jnp.ndarray,
+    si_alpha: Scalar,
+    test: Optional[int],
+    t: jnp.ndarray,
+):
+    """Semi-implicit leapfrog wrapper (opt-in scheme; see `semi_implicit_tdiff`).
+
+    Same return contract as :func:`tstepping`: the 13-tuple
+    ``(newetamn, neweta, newetam, newdeltamn, newdelta, newdeltam,
+    newPhimn, newPhi, newPhim, newU, newV, newUm, newVm)``.
+    """
+    return si_tdiff.si_timestep(
+        Rum_lag,
+        Rvm_lag,
+        etam0,
+        etam1,
+        deltam0,
+        deltam1,
+        Phim0,
+        Phim1,
+        I,
+        J,
+        M,
+        N,
+        Am,
+        Bm,
+        Cm,
+        Dm,
+        Em,
+        Fm,
+        Gm,
+        Um,
+        Vm,
+        fmn,
+        Pmn,
+        Hmn,
+        Pmnw,
+        Hmnw,
+        tstepcoeff,
+        tstepcoeff2,
+        tstepcoeffmn,
+        marray,
+        mJarray,
+        narray,
+        PhiFm,
+        dt,
+        a,
+        Phibar,
+        taurad,
+        taudrag,
+        forcflag,
+        diffflag,
+        relax_implicit,
+        sigma_exp,
+        sigmaPhi_exp,
+        si_alpha,
+        test,
+        t,
+    )
 
 
 def tstepcoeffmn(M: int, N: int, a: Scalar) -> jnp.ndarray:

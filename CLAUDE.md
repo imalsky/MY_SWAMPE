@@ -53,6 +53,7 @@ MY_SWAMP/
 │   ├── time_stepping.py         # scheme dispatch + coefficient arrays + RMS_winds
 │   ├── modEuler_tdiff.py        # modified-Euler scheme (default)
 │   ├── explicit_tdiff.py        # explicit (leapfrog) scheme
+│   ├── semi_implicit_tdiff.py   # opt-in semi-implicit gravity-wave leapfrog (§13.3)
 │   ├── forcing.py               # Phieq, Q, R (radiative + drag) forcing
 │   ├── filters.py               # diffusion filter coefficients + apply
 │   ├── continuation.py          # pickle save/load + timestamp arithmetic
@@ -248,7 +249,7 @@ JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 python scripts/generate_reference_pari
 python scripts/benchmark_scan.py --M 42 --tmax 300 --timed-runs 3
 ```
 
-Current test count: 36. Suite runtime: ~25–40s on CPU.
+Current test count: 50. Suite runtime: ~30–45s on CPU.
 
 ---
 
@@ -281,6 +282,8 @@ Tests with no marker run in both default and parity-gated invocations.
 | `test_continuation_roundtrip.py` | contflag-resume reproduces an explicit-IC restart from the same single-level state. |
 | `test_invalid_input.py` | `pytest.raises` for bad `tmax`, `dt`, `M`, `test`, partial/wrong-shape ICs, contflag without contTime, non-numeric contTime. |
 | `test_vmap_smoke.py` | `jax.vmap` over a stack of `DPhieq` values; per-member agreement with direct calls. |
+| `test_raw_filter.py` | Opt-in RAW filter (§13.2): `williams_alpha=1` is bit-identical to classic RA; `0.53` changes the trajectory; grad wrt `williams_alpha`; `expflag` incompatibility. |
+| `test_semi_implicit.py` | Opt-in semi-implicit scheme (§13.3): finite in the default + WASP-43b regimes (10x explicit dt, default K6); converges to modified-Euler as dt shrinks; grads wrt `taurad`/`si_alpha`; `expflag` incompatibility; composes with RAW. |
 
 When adding a feature, add or extend the matching file. When adding a new
 parity quirk, also extend `test_parity_quirks.py`.
@@ -565,13 +568,20 @@ that's a contract violation — flag it.
 These are the highest-leverage, AD-compatible techniques to consider, drawn
 from a survey of the differentiable Earth-system-modeling literature
 (NeuralGCM/Dinosaur, SpeedyWeather.jl, JCM, and the differentiable-4D-Var
-adjoint work). They are *researched, not yet implemented*. Each notes whether
-it touches the §3 locked-parity contract. The forward-model items (13.2, 13.3)
-must be **opt-in modes**; the AD-infrastructure item (13.1) is parity-neutral.
+adjoint work). Each notes whether it touches the §3 locked-parity contract.
+
+**Status (2026-07-02):** 13.2 and 13.3 are **implemented** as opt-in modes
+(`raw_filter=True` / `semi_implicit=True` on all drivers; defaults are
+bit-identical to the locked behavior — see readme §9 and
+`unit_tests/test_raw_filter.py` / `test_semi_implicit.py`). 13.1 remains
+researched-only. A related retrieval-side upgrade also landed: mixed
+precision (`Config.mixed_precision` in `retrieval/scripts/pipeline.py` —
+f32 dynamics scan, f64 light-curve stage; documented in `retrieval/README.md`
+only, off by default).
 
 Rationale framing: the package's purpose downstream is gradient-based Bayesian
-retrieval (`retrieval/run_smc.py`) of hot-Jupiter dynamical parameters from a
-phase curve, so "helps" means *cheaper/lower-memory gradients* or *cheaper
+retrieval (`retrieval/run_smc.py`) of tidally locked planet dynamical parameters
+from a phase curve, so "helps" means *cheaper/lower-memory gradients* or *cheaper
 forward passes for the inner loop of SMC/HMC*.
 
 ### 13.1 Checkpointed reverse-mode + accumulate the loss in the scan carry

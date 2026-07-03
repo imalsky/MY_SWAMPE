@@ -125,9 +125,9 @@ def sigma6(M: int, N: int, K6: float, a: float, dt: float) -> jnp.ndarray:
 
 def sigma6Phi(M: int, N: int, K6: float, a: float, dt: float) -> jnp.ndarray:
     """Computes the coefficient for the sixth degree diffusion filter for geopotential.
-    
+
     Uses original implicit filter formulation (no factor1 subtraction).
-    
+
     Parameters
     ----------
     M : int
@@ -135,17 +135,79 @@ def sigma6Phi(M: int, N: int, K6: float, a: float, dt: float) -> jnp.ndarray:
     K6 : float
     a : float
     dt : float
-    
+
     Returns
     -------
     jnp.ndarray
     """
     nvec = jnp.arange(N + 1, dtype=float_dtype())
-    
+
     ncoeff = ((nvec * nvec * nvec) / a**3) * (((nvec + 1) * (nvec + 1) * (nvec + 1)) / a**3)
     factor2 = 2 * dt * K6
-    
+
     sigmacoeff = 1 + factor2 * ncoeff
     sigmas = 1 / sigmacoeff
-    
+
+    return jnp.broadcast_to(sigmas[None, :], (M + 1, N + 1))
+
+
+def sigma6_exponential(M: int, N: int, K6: float, a: float, dt: float) -> jnp.ndarray:
+    """Exponential (integrating-factor) sixth-order hyperdiffusion for eta/delta.
+
+    Exact solution of ``d(x_n)/dt = -K6 * [ (n(n+1))^3/a^6 - 8/a^6 ] * x_n`` over a
+    leapfrog step (2*dt): ``x_n -> x_n * exp(-2*dt*K6*(ncoeff - 8/a^6))``.
+
+    The ``8/a^6`` offset mirrors :func:`sigma6` (neutral at n=1); unlike the
+    implicit form it is clamped at zero so n=0 is left untouched rather than
+    amplified. Unconditionally stable for any ``dt``; used by the opt-in
+    semi-implicit scheme.
+
+    Parameters
+    ----------
+    M : int
+    N : int
+    K6 : float
+    a : float
+    dt : float
+
+    Returns
+    -------
+    jnp.ndarray
+    """
+    nvec = jnp.arange(N + 1, dtype=float_dtype())
+
+    ncoeff = ((nvec * nvec * nvec) / a**3) * (((nvec + 1) * (nvec + 1) * (nvec + 1)) / a**3)
+    factor1 = 8 / a**6
+    factor2 = 2 * dt * K6
+
+    sigmas = jnp.exp(-factor2 * jnp.maximum(ncoeff - factor1, 0.0))
+
+    return jnp.broadcast_to(sigmas[None, :], (M + 1, N + 1))
+
+
+def sigma6Phi_exponential(M: int, N: int, K6: float, a: float, dt: float) -> jnp.ndarray:
+    """Exponential (integrating-factor) sixth-order hyperdiffusion for geopotential.
+
+    Same as :func:`sigma6_exponential` but with no ``8/a^6`` offset, mirroring
+    the :func:`sigma6Phi` convention. Unconditionally stable for any ``dt``.
+
+    Parameters
+    ----------
+    M : int
+    N : int
+    K6 : float
+    a : float
+    dt : float
+
+    Returns
+    -------
+    jnp.ndarray
+    """
+    nvec = jnp.arange(N + 1, dtype=float_dtype())
+
+    ncoeff = ((nvec * nvec * nvec) / a**3) * (((nvec + 1) * (nvec + 1) * (nvec + 1)) / a**3)
+    factor2 = 2 * dt * K6
+
+    sigmas = jnp.exp(-factor2 * ncoeff)
+
     return jnp.broadcast_to(sigmas[None, :], (M + 1, N + 1))

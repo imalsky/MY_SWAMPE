@@ -48,3 +48,33 @@ def test_run_model_scan_smoke() -> None:
         arr = np.asarray(outs[key])
         assert arr.shape == (t_seq.size,)
         assert np.isfinite(arr).all(), f"{key} contains NaN/Inf"
+
+
+@pytest.mark.smoke
+@pytest.mark.parametrize("semi_implicit", [False, True])
+def test_run_model_scan_test2_smoke(semi_implicit: bool) -> None:
+    """Test 2 (Williamson balanced zonal flow) runs and stays finite.
+
+    Regression guard for the velocity_init test=2 shape bug: the meridional
+    wind value is latitude-independent, and the vectorized port dropped the
+    reference's preallocated (J, I) array, so Vic came out (1, I) and the
+    initial-state stack crashed on any test=2 run.
+    """
+    from my_swamp.model import run_model_scan
+
+    res = run_model_scan(
+        M=42,
+        dt=600.0,
+        tmax=12,
+        Phibar=3.0e3,
+        omega=7.2921159e-5,
+        a=6.37122e6,
+        test=2,
+        forcflag=False,
+        semi_implicit=semi_implicit,
+    )
+    static = res["static"]
+    for key in ("eta", "delta", "Phi", "U", "V"):
+        arr = np.asarray(res["outs"][key])
+        assert arr.shape[1:] == (static.J, static.I)
+        assert np.isfinite(arr).all(), f"{key} contains NaN/Inf"

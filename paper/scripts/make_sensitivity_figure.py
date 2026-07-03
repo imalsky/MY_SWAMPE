@@ -6,7 +6,7 @@ and its companion data file ``temperature_sensitivity_perhour_100d.npz``.
 
 What it shows
 -------------
-A forced hot-Jupiter integration in the same regime as the parity figure
+A forced, synchronously rotating benchmark integration in the same regime as the parity figure
 (``compare_long_run_parity.py``; M=42, tau_rad=10 h, tau_drag=6 h), run to 100
 days, and the *spatial sensitivity* of the temperature field to the two forcing
 timescales, obtained by automatic differentiation through the full time
@@ -75,7 +75,7 @@ from my_swamp.model import run_model_scan_final  # noqa: E402
 
 jax.config.update("jax_enable_x64", True)
 
-# Forced hot-Jupiter regime -- identical to the parity figure (Figure 1).
+# Forced, synchronously rotating benchmark regime -- identical to the parity figure (Figure 1).
 M = 42
 DT = 120.0
 DPHIEQ = 1.0e6
@@ -94,7 +94,7 @@ R_D = 3779.0  # J kg^-1 K^-1 (specific gas constant; ~solar-composition H2/He)
 
 
 def _base_kwargs(tmax: int) -> dict:
-    """Forced hot-Jupiter solver settings (matches Figure 1)."""
+    """Forced, synchronously rotating benchmark settings (matches Figure 1)."""
     return dict(
         M=M,
         dt=DT,

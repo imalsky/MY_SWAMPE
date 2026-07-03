@@ -85,10 +85,7 @@ python -u scripts/prepare_wasp43b_observations.py
 export PROJECT_ROOT
 export SWAMP_RETRIEVAL_PRESET="${SWAMP_RETRIEVAL_PRESET:-gpu}"
 export SWAMP_RETRIEVAL_USE_X64="${SWAMP_RETRIEVAL_USE_X64:-1}"
-# Production config (30 h-budget run: semi-implicit dt=600, N=256, per-stage MALA
-# adaptation, eclipse-edge masking). Point at config/wasp43b_pilot_gpu.json to
-# reproduce the 2026-07 pilot instead.
-export SWAMP_RETRIEVAL_OVERRIDES_FILE="${SWAMP_RETRIEVAL_OVERRIDES_FILE:-${SUITE_DIR}/config/wasp43b_production_gpu.json}"
+export SWAMP_RETRIEVAL_OVERRIDES_FILE="${SUITE_DIR}/config/wasp43b_pilot_gpu.json"
 export SWAMP_PLOT_OUT_DIR="${SUITE_DIR}/outputs"
 export SWAMP_PLOTS_DIR="${SUITE_DIR}/plots"
 

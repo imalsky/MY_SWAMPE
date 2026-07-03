@@ -17,7 +17,7 @@ dependencies = [
     "scipy>=1.10",
     "matplotlib>=3.7",
     "imageio>=2.31",
-    "jax>=0.4.31,<0.5",
+    "jax>=0.4.31,<0.10",
 ]
 classifiers = [
     "Programming Language :: Python :: 3",

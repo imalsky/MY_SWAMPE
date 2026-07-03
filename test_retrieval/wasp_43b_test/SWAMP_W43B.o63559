@@ -1,0 +1,54 @@
+Job 63559.pbs05a.gh.nas.nasa.gov started on Thu Jul 02 13:22:59 PDT 2026
+The job requested the following resources:
+    mem = 400gb
+    walltime = 36:00:00
+    ncpus = 72
+    place = scatter:excl
+
+PBS set the following environment variables:
+        FORT_BUFFERED = 1
+                   TZ = PST8PDT
+
+Current directory is /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test
+Live log: tail -f /nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/logs/WASP43B_63559.log
+PROJECT_ROOT=/nobackupp17/imalsky/MY_SWAMP
+Warning, exception while checking status: 
+Warning: Environment not found while checking status.
+
+Please log your environment manually using the following command:
+
+    conda env-log log -n <ENV_NAME>
+
+[using existing /nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/data/raw/WASP43b_MIRI_Data.zip]
+[wrote /nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/data/raw/WASP43b_MIRI_Data.zip]
+[sha256 bcef029f5b610d7d2175611717e352998120f929e6a54202ae4f6cd1633ffa00]
+[wrote /nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/outputs/observations.npz]
+[prepared 320 bins from 7432 retained integrations; 11 channels]
+Live log: tail -f /nobackupp17/imalsky/MY_SWAMP/retrieval/logs/SWAMP_SMC_63559.log
+======================================================
+  Job info:  host=cgh01n02  arch=aarch64  PBS_JOBID=63559.pbs05a.gh.nas.nasa.gov  Thu Jul  2 13:23:11 PDT 2026
+======================================================
+SWAMP_RETRIEVAL_SCRATCH=/nobackup/imalsky/.swamp_retrieval
+conda env: pyt2_8_gh  (/swbuild/analytix/tools/miniconda3_241216/bin/python)
+[net] reached PyPI through the proxy (curl).
+[net] Python's default SSL trust store can't verify PyPI (stale conda ca-certificates) -- probing system CA bundles...
+[net] using system CA bundle for pip: /etc/pki/tls/certs/ca-bundle.crt
+running do_mom
+
+____________________________________________________________________
+Job Resource Usage Summary for 63559.pbs05a.gh.nas.nasa.gov
+
+   CPU Time Used            : 00:00:07
+   Real Memory Used         : 9216kb
+   Walltime Used            : 00:00:15
+   Exit Status              : 271
+
+   Memory Requested         : 400gb
+   Number of CPUs requested : 72
+   Walltime Requested       : 36:00:00
+
+   Execution Queue          : gpu_long
+   Charged To               : s2458
+
+   Job Stopped              : Thu Jul  2 13:23:15 2026
+____________________________________________________________________

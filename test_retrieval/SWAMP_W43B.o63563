@@ -1,0 +1,352 @@
+Job 63563.pbs05a.gh.nas.nasa.gov started on Thu Jul 02 13:56:41 PDT 2026
+The job requested the following resources:
+    mem = 400gb
+    walltime = 36:00:00
+    ncpus = 72
+    place = scatter:excl
+
+PBS set the following environment variables:
+        FORT_BUFFERED = 1
+                   TZ = PST8PDT
+
+Current directory is /nobackup/imalsky/MY_SWAMP
+Live log: tail -f /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/logs/WASP43B_63563.log
+PROJECT_ROOT=/nobackup/imalsky/MY_SWAMP
+Warning, exception while checking status: 
+Warning: Environment not found while checking status.
+
+Please log your environment manually using the following command:
+
+    conda env-log log -n <ENV_NAME>
+
+[using existing /nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/data/raw/WASP43b_MIRI_Data.zip]
+[wrote /nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/data/raw/WASP43b_MIRI_Data.zip]
+[sha256 bcef029f5b610d7d2175611717e352998120f929e6a54202ae4f6cd1633ffa00]
+[wrote /nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/outputs/observations.npz]
+[prepared 320 bins from 7432 retained integrations; 11 channels]
+Live log: tail -f /nobackup/imalsky/MY_SWAMP/retrieval/logs/SWAMP_SMC_63563.log
+======================================================
+  Job info:  host=cgh01n02  arch=aarch64  PBS_JOBID=63563.pbs05a.gh.nas.nasa.gov  Thu Jul  2 13:56:52 PDT 2026
+======================================================
+SWAMP_RETRIEVAL_SCRATCH=/nobackup/imalsky/.swamp_retrieval
+conda env: pyt2_8_gh  (/swbuild/analytix/tools/miniconda3_241216/bin/python)
+[net] reached PyPI through the proxy (curl).
+[net] Python's default SSL trust store can't verify PyPI (stale conda ca-certificates) -- probing system CA bundles...
+[net] using system CA bundle for pip: /etc/pki/tls/certs/ca-bundle.crt
+[install] user-site already provides jax 0.6.2; reusing it (no network needed; FORCE=1 to reinstall).
+[install] jaxoplanet already importable -- skipping (FORCE=1 to reinstall)
+[install] blackjax already importable -- skipping (FORCE=1 to reinstall)
+[install] all my_swamp Python deps already present
+jaxoplanet 0.1.0 | blackjax 1.3 | corner 2.2.3 : imports OK
+------ JAX backend check ------
+NVIDIA GH200 480GB, 97871 MiB
+jax 0.6.2 | backend=gpu | devices=[CudaDevice(id=0)]
+======================================================
+  run_smc.py  (preset=gpu)
+======================================================
+INFO:2026-07-02 13:57:21,956:jax._src.xla_bridge:752: Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+2026-07-02 13:57:21,956 | INFO | Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+2026-07-02 13:57:22,091 | INFO | preset=gpu use_x64=True backend=gpu devices=[CudaDevice(id=0)]
+2026-07-02 13:57:29,975 | INFO | Built pipeline in 7.9s | grid I=128 J=64 n_steps=14400 | inferred 6: ['tau_rad_hours', 'tau_drag_hours', 'planet_fpfs', 'Phibar', 'DPhieq', 'noise_inflation']
+2026-07-02 13:57:30,090 | INFO | Loaded observations from: /nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/outputs/observations.npz
+2026-07-02 13:57:30,091 | INFO | Observed flux span=7057.6 ppm | per-point sigma [76.8-79.5] ppm (mean 78.2) | amplitude/noise=90.3
+2026-07-02 13:57:30,091 | INFO | Running BlackJAX adaptive tempered SMC...
+2026-07-02 13:57:30,645 | INFO | Building adaptive tempered SMC: kernel=mala, N=64, target_ess_frac=0.600, num_mcmc_steps=20, step_size=0.00857
+Adaptive tempered SMC:   0%|          | 0/60 [00:00<?, ?it/s]Adaptive tempered SMC:   0%|          | 0/60 [24:27<?, ?it/s, acc=1.000, beta=1.58e-30, ess=63.4]2026-07-02 14:23:42,708 | INFO | SMC step 000: beta=1.578e-30, ESS=63.4/64, mean_accept=1.000
+Adaptive tempered SMC:   2%|▏         | 1/60 [24:27<24:03:21, 1467.82s/it, acc=1.000, beta=1.58e-30, ess=63.4]Adaptive tempered SMC:   2%|▏         | 1/60 [48:54<24:03:21, 1467.82s/it, acc=1.000, beta=3.16e-30, ess=64.0]2026-07-02 14:48:10,023 | INFO | SMC step 001: beta=3.155e-30, ESS=64.0/64, mean_accept=1.000
+Adaptive tempered SMC:   3%|▎         | 2/60 [48:54<23:38:24, 1467.31s/it, acc=1.000, beta=3.16e-30, ess=64.0]Adaptive tempered SMC:   3%|▎         | 2/60 [1:13:21<23:38:24, 1467.31s/it, acc=1.000, beta=1.02e-05, ess=59.8]2026-07-02 15:12:37,020 | INFO | SMC step 002: beta=1.024e-05, ESS=59.8/64, mean_accept=1.000
+Adaptive tempered SMC:   5%|▌         | 3/60 [1:13:21<23:13:49, 1467.19s/it, acc=1.000, beta=1.02e-05, ess=59.8]Adaptive tempered SMC:   5%|▌         | 3/60 [1:37:48<23:13:49, 1467.19s/it, acc=1.000, beta=2.00e-05, ess=61.5]2026-07-02 15:37:03,980 | INFO | SMC step 003: beta=2.003e-05, ESS=61.5/64, mean_accept=1.000
+Adaptive tempered SMC:   7%|▋         | 4/60 [1:37:48<22:49:16, 1467.08s/it, acc=1.000, beta=2.00e-05, ess=61.5]Adaptive tempered SMC:   7%|▋         | 4/60 [2:02:15<22:49:16, 1467.08s/it, acc=1.000, beta=3.44e-05, ess=62.2]2026-07-02 16:01:30,967 | INFO | SMC step 004: beta=3.440e-05, ESS=62.2/64, mean_accept=1.000
+Adaptive tempered SMC:   8%|▊         | 5/60 [2:02:15<22:24:45, 1467.01s/it, acc=1.000, beta=3.44e-05, ess=62.2]Adaptive tempered SMC:   8%|▊         | 5/60 [2:26:42<22:24:45, 1467.01s/it, acc=0.999, beta=7.37e-05, ess=56.0]2026-07-02 16:25:57,969 | INFO | SMC step 005: beta=7.373e-05, ESS=56.0/64, mean_accept=0.999
+Adaptive tempered SMC:  10%|█         | 6/60 [2:26:42<22:00:22, 1467.08s/it, acc=0.999, beta=7.37e-05, ess=56.0]Adaptive tempered SMC:  10%|█         | 6/60 [2:51:09<22:00:22, 1467.08s/it, acc=1.000, beta=9.82e-05, ess=63.1]2026-07-02 16:50:25,241 | INFO | SMC step 006: beta=9.818e-05, ESS=63.1/64, mean_accept=1.000
+Adaptive tempered SMC:  12%|█▏        | 7/60 [2:51:09<21:35:56, 1467.10s/it, acc=1.000, beta=9.82e-05, ess=63.1]Adaptive tempered SMC:  12%|█▏        | 7/60 [3:15:36<21:35:56, 1467.10s/it, acc=1.000, beta=1.71e-04, ess=59.8]2026-07-02 17:14:52,237 | INFO | SMC step 007: beta=1.714e-04, ESS=59.8/64, mean_accept=1.000
+Adaptive tempered SMC:  13%|█▎        | 8/60 [3:15:36<21:11:26, 1467.05s/it, acc=1.000, beta=1.71e-04, ess=59.8]Adaptive tempered SMC:  13%|█▎        | 8/60 [3:40:03<21:11:26, 1467.05s/it, acc=1.000, beta=2.41e-04, ess=62.3]2026-07-02 17:39:19,214 | INFO | SMC step 008: beta=2.415e-04, ESS=62.3/64, mean_accept=1.000
+Adaptive tempered SMC:  15%|█▌        | 9/60 [3:40:04<20:47:04, 1467.15s/it, acc=1.000, beta=2.41e-04, ess=62.3]Adaptive tempered SMC:  15%|█▌        | 9/60 [4:04:31<20:47:04, 1467.15s/it, acc=0.999, beta=4.13e-04, ess=57.9]2026-07-02 18:03:46,571 | INFO | SMC step 009: beta=4.133e-04, ESS=57.9/64, mean_accept=0.999
+Adaptive tempered SMC:  17%|█▋        | 10/60 [4:04:31<20:22:34, 1467.10s/it, acc=0.999, beta=4.13e-04, ess=57.9]Adaptive tempered SMC:  17%|█▋        | 10/60 [4:28:58<20:22:34, 1467.10s/it, acc=0.999, beta=5.28e-04, ess=61.7]2026-07-02 18:28:13,547 | INFO | SMC step 010: beta=5.281e-04, ESS=61.7/64, mean_accept=0.999
+Adaptive tempered SMC:  18%|█▊        | 11/60 [4:28:58<19:58:05, 1467.06s/it, acc=0.999, beta=5.28e-04, ess=61.7]Adaptive tempered SMC:  18%|█▊        | 11/60 [4:53:25<19:58:05, 1467.06s/it, acc=0.998, beta=7.45e-04, ess=59.4]2026-07-02 18:52:40,524 | INFO | SMC step 011: beta=7.454e-04, ESS=59.4/64, mean_accept=0.998
+Adaptive tempered SMC:  20%|██        | 12/60 [4:53:25<19:33:39, 1467.07s/it, acc=0.998, beta=7.45e-04, ess=59.4]Adaptive tempered SMC:  20%|██        | 12/60 [5:17:52<19:33:39, 1467.07s/it, acc=0.995, beta=1.18e-03, ess=54.6]2026-07-02 19:17:07,548 | INFO | SMC step 012: beta=1.183e-03, ESS=54.6/64, mean_accept=0.995
+Adaptive tempered SMC:  22%|██▏       | 13/60 [5:17:52<19:09:10, 1467.03s/it, acc=0.995, beta=1.18e-03, ess=54.6]Adaptive tempered SMC:  22%|██▏       | 13/60 [5:42:19<19:09:10, 1467.03s/it, acc=0.996, beta=1.64e-03, ess=58.0]2026-07-02 19:41:34,554 | INFO | SMC step 013: beta=1.641e-03, ESS=58.0/64, mean_accept=0.996
+Adaptive tempered SMC:  23%|██▎       | 14/60 [5:42:19<18:44:42, 1467.02s/it, acc=0.996, beta=1.64e-03, ess=58.0]Adaptive tempered SMC:  23%|██▎       | 14/60 [6:06:46<18:44:42, 1467.02s/it, acc=0.994, beta=2.27e-03, ess=59.4]2026-07-02 20:06:01,543 | INFO | SMC step 014: beta=2.269e-03, ESS=59.4/64, mean_accept=0.994
+Adaptive tempered SMC:  25%|██▌       | 15/60 [6:06:46<18:20:16, 1467.04s/it, acc=0.994, beta=2.27e-03, ess=59.4]Adaptive tempered SMC:  25%|██▌       | 15/60 [6:31:13<18:20:16, 1467.04s/it, acc=0.990, beta=3.19e-03, ess=59.1]2026-07-02 20:30:28,619 | INFO | SMC step 015: beta=3.188e-03, ESS=59.1/64, mean_accept=0.990
+Adaptive tempered SMC:  27%|██▋       | 16/60 [6:31:13<17:55:49, 1467.03s/it, acc=0.990, beta=3.19e-03, ess=59.1]Adaptive tempered SMC:  27%|██▋       | 16/60 [6:55:40<17:55:49, 1467.03s/it, acc=0.984, beta=4.62e-03, ess=56.6]2026-07-02 20:54:55,620 | INFO | SMC step 016: beta=4.616e-03, ESS=56.6/64, mean_accept=0.984
+Adaptive tempered SMC:  28%|██▊       | 17/60 [6:55:40<17:31:24, 1467.07s/it, acc=0.984, beta=4.62e-03, ess=56.6]Adaptive tempered SMC:  28%|██▊       | 17/60 [7:20:07<17:31:24, 1467.07s/it, acc=0.974, beta=6.18e-03, ess=60.8]2026-07-02 21:19:22,786 | INFO | SMC step 017: beta=6.180e-03, ESS=60.8/64, mean_accept=0.974
+Adaptive tempered SMC:  30%|███       | 18/60 [7:20:07<17:06:56, 1467.05s/it, acc=0.974, beta=6.18e-03, ess=60.8]Adaptive tempered SMC:  30%|███       | 18/60 [7:44:34<17:06:56, 1467.05s/it, acc=0.961, beta=9.03e-03, ess=56.7]2026-07-02 21:43:49,815 | INFO | SMC step 018: beta=9.031e-03, ESS=56.7/64, mean_accept=0.961
+Adaptive tempered SMC:  32%|███▏      | 19/60 [7:44:34<16:42:28, 1467.05s/it, acc=0.961, beta=9.03e-03, ess=56.7]Adaptive tempered SMC:  32%|███▏      | 19/60 [8:09:01<16:42:28, 1467.05s/it, acc=0.916, beta=1.24e-02, ess=57.0]2026-07-02 22:08:16,836 | INFO | SMC step 019: beta=1.241e-02, ESS=57.0/64, mean_accept=0.916
+Adaptive tempered SMC:  33%|███▎      | 20/60 [8:09:01<16:18:00, 1467.02s/it, acc=0.916, beta=1.24e-02, ess=57.0]Adaptive tempered SMC:  33%|███▎      | 20/60 [8:33:28<16:18:00, 1467.02s/it, acc=0.853, beta=1.51e-02, ess=61.1]2026-07-02 22:32:43,793 | INFO | SMC step 020: beta=1.512e-02, ESS=61.1/64, mean_accept=0.853
+Adaptive tempered SMC:  35%|███▌      | 21/60 [8:33:28<15:53:34, 1467.04s/it, acc=0.853, beta=1.51e-02, ess=61.1]Adaptive tempered SMC:  35%|███▌      | 21/60 [8:57:55<15:53:34, 1467.04s/it, acc=0.801, beta=2.11e-02, ess=53.5]2026-07-02 22:57:10,913 | INFO | SMC step 021: beta=2.106e-02, ESS=53.5/64, mean_accept=0.801
+Adaptive tempered SMC:  37%|███▋      | 22/60 [8:57:55<15:29:09, 1467.10s/it, acc=0.801, beta=2.11e-02, ess=53.5]Adaptive tempered SMC:  37%|███▋      | 22/60 [9:22:22<15:29:09, 1467.10s/it, acc=0.681, beta=3.02e-02, ess=47.6]2026-07-02 23:21:38,008 | INFO | SMC step 022: beta=3.017e-02, ESS=47.6/64, mean_accept=0.681
+Adaptive tempered SMC:  38%|███▊      | 23/60 [9:22:22<15:04:40, 1467.03s/it, acc=0.681, beta=3.02e-02, ess=47.6]Adaptive tempered SMC:  38%|███▊      | 23/60 [9:46:49<15:04:40, 1467.03s/it, acc=0.492, beta=4.27e-02, ess=48.7]2026-07-02 23:46:05,034 | INFO | SMC step 023: beta=4.269e-02, ESS=48.7/64, mean_accept=0.492
+Adaptive tempered SMC:  40%|████      | 24/60 [9:46:49<14:40:13, 1467.04s/it, acc=0.492, beta=4.27e-02, ess=48.7]Adaptive tempered SMC:  40%|████      | 24/60 [10:11:16<14:40:13, 1467.04s/it, acc=0.366, beta=5.35e-02, ess=56.8]2026-07-03 00:10:32,018 | INFO | SMC step 024: beta=5.352e-02, ESS=56.8/64, mean_accept=0.366
+Adaptive tempered SMC:  42%|████▏     | 25/60 [10:11:16<14:15:45, 1467.00s/it, acc=0.366, beta=5.35e-02, ess=56.8]Adaptive tempered SMC:  42%|████▏     | 25/60 [10:35:43<14:15:45, 1467.00s/it, acc=0.247, beta=6.20e-02, ess=61.3]2026-07-03 00:34:58,993 | INFO | SMC step 025: beta=6.197e-02, ESS=61.3/64, mean_accept=0.247
+Adaptive tempered SMC:  43%|████▎     | 26/60 [10:35:43<13:51:17, 1466.99s/it, acc=0.247, beta=6.20e-02, ess=61.3]Adaptive tempered SMC:  43%|████▎     | 26/60 [11:00:10<13:51:17, 1466.99s/it, acc=0.184, beta=8.56e-02, ess=50.5]2026-07-03 00:59:25,894 | INFO | SMC step 026: beta=8.557e-02, ESS=50.5/64, mean_accept=0.184
+Adaptive tempered SMC:  45%|████▌     | 27/60 [11:00:10<13:26:50, 1466.98s/it, acc=0.184, beta=8.56e-02, ess=50.5]Adaptive tempered SMC:  45%|████▌     | 27/60 [11:24:37<13:26:50, 1466.98s/it, acc=0.106, beta=1.12e-01, ess=55.0]2026-07-03 01:23:52,850 | INFO | SMC step 027: beta=1.124e-01, ESS=55.0/64, mean_accept=0.106
+Adaptive tempered SMC:  47%|████▋     | 28/60 [11:24:37<13:02:22, 1466.95s/it, acc=0.106, beta=1.12e-01, ess=55.0]Adaptive tempered SMC:  47%|████▋     | 28/60 [11:49:04<13:02:22, 1466.95s/it, acc=0.072, beta=1.41e-01, ess=56.9]2026-07-03 01:48:19,724 | INFO | SMC step 028: beta=1.407e-01, ESS=56.9/64, mean_accept=0.072
+Adaptive tempered SMC:  48%|████▊     | 29/60 [11:49:04<12:37:54, 1466.93s/it, acc=0.072, beta=1.41e-01, ess=56.9]Adaptive tempered SMC:  48%|████▊     | 29/60 [12:13:31<12:37:54, 1466.93s/it, acc=0.047, beta=1.76e-01, ess=58.7]2026-07-03 02:12:46,712 | INFO | SMC step 029: beta=1.764e-01, ESS=58.7/64, mean_accept=0.047
+Adaptive tempered SMC:  50%|█████     | 30/60 [12:13:31<12:13:29, 1466.97s/it, acc=0.047, beta=1.76e-01, ess=58.7]Adaptive tempered SMC:  50%|█████     | 30/60 [12:37:58<12:13:29, 1466.97s/it, acc=0.029, beta=2.29e-01, ess=56.3]2026-07-03 02:37:13,718 | INFO | SMC step 030: beta=2.293e-01, ESS=56.3/64, mean_accept=0.029
+Adaptive tempered SMC:  52%|█████▏    | 31/60 [12:37:58<11:49:02, 1466.97s/it, acc=0.029, beta=2.29e-01, ess=56.3]Adaptive tempered SMC:  52%|█████▏    | 31/60 [13:02:25<11:49:02, 1466.97s/it, acc=0.017, beta=3.07e-01, ess=53.7]2026-07-03 03:01:40,683 | INFO | SMC step 031: beta=3.068e-01, ESS=53.7/64, mean_accept=0.017
+Adaptive tempered SMC:  53%|█████▎    | 32/60 [13:02:25<11:24:34, 1466.96s/it, acc=0.017, beta=3.07e-01, ess=53.7]Adaptive tempered SMC:  53%|█████▎    | 32/60 [13:26:52<11:24:34, 1466.96s/it, acc=0.010, beta=3.82e-01, ess=58.1]2026-07-03 03:26:07,566 | INFO | SMC step 032: beta=3.825e-01, ESS=58.1/64, mean_accept=0.010
+Adaptive tempered SMC:  55%|█████▌    | 33/60 [13:26:52<11:00:07, 1466.96s/it, acc=0.010, beta=3.82e-01, ess=58.1]Adaptive tempered SMC:  55%|█████▌    | 33/60 [13:51:19<11:00:07, 1466.96s/it, acc=0.007, beta=5.21e-01, ess=53.8]2026-07-03 03:50:34,529 | INFO | SMC step 033: beta=5.207e-01, ESS=53.8/64, mean_accept=0.007
+Adaptive tempered SMC:  57%|█████▋    | 34/60 [13:51:19<10:35:40, 1466.95s/it, acc=0.007, beta=5.21e-01, ess=53.8]Adaptive tempered SMC:  57%|█████▋    | 34/60 [14:15:46<10:35:40, 1466.95s/it, acc=0.003, beta=6.89e-01, ess=55.9]2026-07-03 04:15:01,486 | INFO | SMC step 034: beta=6.893e-01, ESS=55.9/64, mean_accept=0.003
+Adaptive tempered SMC:  58%|█████▊    | 35/60 [14:15:46<10:11:13, 1466.94s/it, acc=0.003, beta=6.89e-01, ess=55.9]Adaptive tempered SMC:  58%|█████▊    | 35/60 [14:40:13<10:11:13, 1466.94s/it, acc=0.002, beta=8.53e-01, ess=58.4]2026-07-03 04:39:28,399 | INFO | SMC step 035: beta=8.528e-01, ESS=58.4/64, mean_accept=0.002
+Adaptive tempered SMC:  60%|██████    | 36/60 [14:40:13<9:46:46, 1466.95s/it, acc=0.002, beta=8.53e-01, ess=58.4] Adaptive tempered SMC:  60%|██████    | 36/60 [15:04:39<9:46:46, 1466.95s/it, acc=0.001, beta=1.00e+00, ess=61.7]2026-07-03 05:03:55,325 | INFO | SMC step 036: beta=1.000e+00, ESS=61.7/64, mean_accept=0.001
+Adaptive tempered SMC:  60%|██████    | 36/60 [15:04:40<10:03:06, 1507.78s/it, acc=0.001, beta=1.00e+00, ess=61.7]
+2026-07-03 05:03:57,981 | INFO | SMC finished in 906.5 min | reached_beta1=True | n_temper=37 | step_size=0.00857
+2026-07-03 05:03:58,001 | INFO | Saved posterior samples to: /nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/outputs/posterior_samples.npz
+2026-07-03 05:03:58,007 | INFO | Saved SMC diagnostics to: /nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/outputs/mcmc_extra_fields.npz
+2026-07-03 05:03:58,007 | INFO | Posterior (median [5%,95%]):
+2026-07-03 05:03:58,013 | INFO |   tau_rad_hours       25.286 [  19.092,  33.755]
+2026-07-03 05:03:58,014 | INFO |   tau_drag_hours       2.581 [   1.859,   3.995]
+2026-07-03 05:03:58,014 | INFO |   planet_fpfs          0.003 [   0.003,   0.003]
+2026-07-03 05:03:58,014 | INFO |   Phibar           2487022.797 [2289790.212,2600847.695]
+2026-07-03 05:03:58,014 | INFO |   DPhieq           4409737.575 [3898305.115,4577420.601]
+2026-07-03 05:03:58,014 | INFO |   noise_inflation      2.578 [   2.458,   2.789]
+2026-07-03 05:03:58,014 | INFO | Computing posterior-predictive phase curves...
+2026-07-03 05:04:43,194 | INFO | Saved posterior-predictive files.
+2026-07-03 05:04:43,194 | INFO | Computing truth + posterior-median terminal maps...
+2026-07-03 05:04:48,309 | INFO | Saved truth + posterior-median maps. DONE.
+------ generating figures + summary ------
+/nobackupp17/imalsky/MY_SWAMP/retrieval/scripts/plot_smc.py:67: MatplotlibDeprecationWarning: The text.hinting_factor rcParam was deprecated in Matplotlib 3.11 and will be removed in 3.13.
+  plt.style.use(str(_STYLE_FILE))
+2026-07-03 05:04:58,071 | INFO | === plot_smc diagnostics start (2026-07-03 12:04:58 UTC) ===
+2026-07-03 05:04:58,093 | INFO | OUT_DIR=/nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/outputs
+2026-07-03 05:04:58,094 | INFO | PLOTS_DIR=/nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots
+2026-07-03 05:04:58,095 | INFO | CWD=/nobackupp17/imalsky/MY_SWAMP/retrieval/scripts
+2026-07-03 05:04:58,095 | INFO | Python=3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:17:02) [GCC 11.2.0]
+2026-07-03 05:04:58,101 | INFO | Platform=Linux-5.14.0-611.55.1.2toss.t5.aarch64-aarch64-with-glibc2.34
+2026-07-03 05:04:58,101 | INFO | NumPy=2.5.0
+2026-07-03 05:04:58,105 | INFO | Matplotlib=3.11.0, backend=Agg
+2026-07-03 05:04:58,105 | INFO | Log level=INFO
+2026-07-03 05:04:58,108 | INFO | OUT_DIR contains 10 entries: ['config.json', 'maps_truth_and_posterior_summary.npz', 'mcmc_extra_fields.npz', 'observations.npz', 'plot.log', 'posterior_predictive.npz', 'posterior_predictive_quantiles.npz', 'posterior_samples.npz', 'run.log', 'smc_checkpoint.npz']
+2026-07-03 05:04:58,113 | INFO | Found run.log: size=5.6 KiB, mtime=2026-07-03 12:04:48 UTC
+2026-07-03 05:04:58,117 | INFO | run.log tail (last 25 lines):
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 00:59:25,894 | INFO | SMC step 026: beta=8.557e-02, ESS=50.5/64, mean_accept=0.184
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 01:23:52,850 | INFO | SMC step 027: beta=1.124e-01, ESS=55.0/64, mean_accept=0.106
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 01:48:19,724 | INFO | SMC step 028: beta=1.407e-01, ESS=56.9/64, mean_accept=0.072
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 02:12:46,712 | INFO | SMC step 029: beta=1.764e-01, ESS=58.7/64, mean_accept=0.047
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 02:37:13,718 | INFO | SMC step 030: beta=2.293e-01, ESS=56.3/64, mean_accept=0.029
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 03:01:40,683 | INFO | SMC step 031: beta=3.068e-01, ESS=53.7/64, mean_accept=0.017
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 03:26:07,566 | INFO | SMC step 032: beta=3.825e-01, ESS=58.1/64, mean_accept=0.010
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 03:50:34,529 | INFO | SMC step 033: beta=5.207e-01, ESS=53.8/64, mean_accept=0.007
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 04:15:01,486 | INFO | SMC step 034: beta=6.893e-01, ESS=55.9/64, mean_accept=0.003
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 04:39:28,399 | INFO | SMC step 035: beta=8.528e-01, ESS=58.4/64, mean_accept=0.002
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 05:03:55,325 | INFO | SMC step 036: beta=1.000e+00, ESS=61.7/64, mean_accept=0.001
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 05:03:57,981 | INFO | SMC finished in 906.5 min | reached_beta1=True | n_temper=37 | step_size=0.00857
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 05:03:58,001 | INFO | Saved posterior samples to: /nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/outputs/posterior_samples.npz
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 05:03:58,007 | INFO | Saved SMC diagnostics to: /nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/outputs/mcmc_extra_fields.npz
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 05:03:58,007 | INFO | Posterior (median [5%,95%]):
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 05:03:58,013 | INFO |   tau_rad_hours       25.286 [  19.092,  33.755]
+2026-07-03 05:04:58,117 | INFO | run.log| 2026-07-03 05:03:58,014 | INFO |   tau_drag_hours       2.581 [   1.859,   3.995]
+2026-07-03 05:04:58,118 | INFO | run.log| 2026-07-03 05:03:58,014 | INFO |   planet_fpfs          0.003 [   0.003,   0.003]
+2026-07-03 05:04:58,118 | INFO | run.log| 2026-07-03 05:03:58,014 | INFO |   Phibar           2487022.797 [2289790.212,2600847.695]
+2026-07-03 05:04:58,118 | INFO | run.log| 2026-07-03 05:03:58,014 | INFO |   DPhieq           4409737.575 [3898305.115,4577420.601]
+2026-07-03 05:04:58,118 | INFO | run.log| 2026-07-03 05:03:58,014 | INFO |   noise_inflation      2.578 [   2.458,   2.789]
+2026-07-03 05:04:58,118 | INFO | run.log| 2026-07-03 05:03:58,014 | INFO | Computing posterior-predictive phase curves...
+2026-07-03 05:04:58,118 | INFO | run.log| 2026-07-03 05:04:43,194 | INFO | Saved posterior-predictive files.
+2026-07-03 05:04:58,118 | INFO | run.log| 2026-07-03 05:04:43,194 | INFO | Computing truth + posterior-median terminal maps...
+2026-07-03 05:04:58,118 | INFO | run.log| 2026-07-03 05:04:48,309 | INFO | Saved truth + posterior-median maps. DONE.
+2026-07-03 05:04:58,119 | INFO | Found config.json: size=12.9 KiB, mtime=2026-07-02 20:57:30 UTC
+2026-07-03 05:04:58,121 | INFO | Loaded config.json with 143 keys
+2026-07-03 05:04:58,121 | INFO | config.json out_dir matches plot OUT_DIR.
+2026-07-03 05:04:58,121 | INFO | Matplotlib figure.dpi set to 160.0
+2026-07-03 05:04:58,122 | INFO | Found observations.npz: size=51.5 KiB, mtime=2026-07-02 20:56:52 UTC
+2026-07-03 05:04:58,125 | INFO | Loaded observations.npz: keys=['times_days', 'flux_obs', 'obs_sigma', 'obs_sigma_vec', 'orbital_period_days', 'time_transit_days', 'source_time_mjd', 'band_wavelengths_um', 'band_weights']
+2026-07-03 05:04:58,126 | INFO | times_days: dtype=float64, shape=(320,)
+2026-07-03 05:04:58,126 | INFO | times_days: finite=320/320 (100.00%), nonfinite=0
+2026-07-03 05:04:58,126 | INFO | times_days: min=-0.4875, max=0.520133, mean=0.0224914, std=0.309365
+2026-07-03 05:04:58,126 | INFO | times_days: q01=-0.478338, q05=-0.441693, q50=0.0805989, q95=0.476231, q99=0.511353
+2026-07-03 05:04:58,126 | INFO | flux_true: dtype=float64, shape=(320,)
+2026-07-03 05:04:58,126 | INFO | flux_true: finite=0/320 (0.00%), nonfinite=320
+2026-07-03 05:04:58,126 | INFO | flux_obs: dtype=float64, shape=(320,)
+2026-07-03 05:04:58,126 | INFO | flux_obs: finite=320/320 (100.00%), nonfinite=0
+2026-07-03 05:04:58,127 | INFO | flux_obs: min=0.995865, max=1.00292, mean=0.999974, std=0.00168352
+2026-07-03 05:04:58,127 | INFO | flux_obs: q01=0.99592, q05=0.997014, q50=1.00022, q95=1.00274, q99=1.00287
+2026-07-03 05:04:58,127 | INFO | obs_sigma=7.81515e-05
+2026-07-03 05:04:58,127 | INFO | orbital_period_days=0.813474
+2026-07-03 05:04:58,127 | INFO | times_days: monotonic increasing
+2026-07-03 05:04:58,127 | INFO | Found posterior_samples.npz: size=2.8 KiB, mtime=2026-07-03 12:03:57 UTC
+2026-07-03 05:04:58,127 | INFO | Loaded posterior_samples.npz: keys=['param_names', 'param_labels', 'samples']
+2026-07-03 05:04:58,128 | INFO | Inferred parameters from posterior_samples.npz: ['tau_rad_hours', 'tau_drag_hours', 'planet_fpfs', 'Phibar', 'DPhieq', 'noise_inflation']
+2026-07-03 05:04:58,128 | INFO | Loaded posterior samples cube: shape=(2, 256, 6) (chains, draws, dim)
+2026-07-03 05:04:58,128 | INFO | samples: dtype=float64, shape=(2, 256, 6)
+2026-07-03 05:04:58,128 | INFO | samples: finite=3072/3072 (100.00%), nonfinite=0
+2026-07-03 05:04:58,128 | INFO | samples: min=0.00328945, max=4.70857e+06, mean=1.12313e+06, std=1.68307e+06
+2026-07-03 05:04:58,128 | INFO | samples: q01=0.00332764, q05=0.00336994, q50=11.8274, q95=4.51726e+06, q99=4.57742e+06
+2026-07-03 05:04:58,132 | INFO | Loaded optional mcmc_extra_fields.npz: keys=['inference_method', 'smc_kernel', 'smc_resampling', 'smc_num_particles', 'smc_num_mcmc_steps', 'smc_mcmc_step_size', 'smc_mcmc_step_size_auto_tuned', 'smc_target_ess_frac', 'smc_betas', 'smc_ess', 'smc_acceptance_rate', 'smc_logZ_increment', 'smc_logZ', 'smc_final_weights', 'inferred_param_names', 'inferred_param_truth']
+2026-07-03 05:04:58,132 | INFO | Loaded optional posterior_predictive_quantiles.npz: keys=['p05', 'p50', 'p95', 'times_days']
+2026-07-03 05:04:58,132 | INFO | ppc_p05: dtype=float64, shape=(320,)
+2026-07-03 05:04:58,133 | INFO | ppc_p05: finite=320/320 (100.00%), nonfinite=0
+2026-07-03 05:04:58,133 | INFO | ppc_p05: min=0.99573, max=1.00268, mean=0.999946, std=0.00167651
+2026-07-03 05:04:58,133 | INFO | ppc_p05: q01=0.995742, q05=0.996797, q50=1.00017, q95=1.00252, q99=1.00268
+2026-07-03 05:04:58,133 | INFO | ppc_p50: dtype=float64, shape=(320,)
+2026-07-03 05:04:58,133 | INFO | ppc_p50: finite=320/320 (100.00%), nonfinite=0
+2026-07-03 05:04:58,133 | INFO | ppc_p50: min=0.995786, max=1.00271, mean=0.999973, std=0.00166742
+2026-07-03 05:04:58,133 | INFO | ppc_p50: q01=0.995798, q05=0.996875, q50=1.00019, q95=1.00254, q99=1.0027
+2026-07-03 05:04:58,133 | INFO | ppc_p95: dtype=float64, shape=(320,)
+2026-07-03 05:04:58,133 | INFO | ppc_p95: finite=320/320 (100.00%), nonfinite=0
+2026-07-03 05:04:58,133 | INFO | ppc_p95: min=0.995853, max=1.00273, mean=1, std=0.00165806
+2026-07-03 05:04:58,133 | INFO | ppc_p95: q01=0.995865, q05=0.996952, q50=1.00022, q95=1.00258, q99=1.00273
+2026-07-03 05:04:58,133 | INFO | PPC quantiles will be overlaid on phase curve plot.
+2026-07-03 05:04:58,134 | INFO | Loaded optional maps_truth_and_posterior_summary.npz: keys=['lon', 'lat', 'phi_truth', 'T_truth', 'I_truth', 'y_truth', 'phi_post', 'T_post', 'I_post', 'y_post', 'inferred_param_names', 'inferred_param_truth', 'inferred_param_post_median']
+2026-07-03 05:04:58,135 | INFO | maps.phi_truth: dtype=float64, shape=(64, 128)
+2026-07-03 05:04:58,135 | INFO | maps.phi_truth: finite=0/8192 (0.00%), nonfinite=8192
+2026-07-03 05:04:58,135 | INFO | maps.phi_post: dtype=float64, shape=(64, 128)
+2026-07-03 05:04:58,135 | INFO | maps.phi_post: finite=8192/8192 (100.00%), nonfinite=0
+2026-07-03 05:04:58,135 | INFO | maps.phi_post: min=173765, max=2.70281e+06, mean=1.02402e+06, std=736210
+2026-07-03 05:04:58,135 | INFO | maps.phi_post: q01=176056, q05=196169, q50=786417, q95=2.49033e+06, q99=2.66365e+06
+2026-07-03 05:04:58,136 | INFO | maps.T_truth: dtype=float64, shape=(64, 128)
+2026-07-03 05:04:58,136 | INFO | maps.T_truth: finite=0/8192 (0.00%), nonfinite=8192
+2026-07-03 05:04:58,136 | INFO | maps.T_post: dtype=float64, shape=(64, 128)
+2026-07-03 05:04:58,136 | INFO | maps.T_post: finite=8192/8192 (100.00%), nonfinite=0
+2026-07-03 05:04:58,136 | INFO | maps.T_post: min=703.912, max=1372.97, mean=928.846, std=194.765
+2026-07-03 05:04:58,136 | INFO | maps.T_post: q01=704.518, q05=709.839, q50=865.989, q95=1316.76, q99=1362.61
+2026-07-03 05:04:58,137 | INFO | maps.I_truth: dtype=float64, shape=(64, 128)
+2026-07-03 05:04:58,137 | INFO | maps.I_truth: finite=0/8192 (0.00%), nonfinite=8192
+2026-07-03 05:04:58,137 | INFO | maps.I_post: dtype=float64, shape=(64, 128)
+2026-07-03 05:04:58,137 | INFO | maps.I_post: finite=8192/8192 (100.00%), nonfinite=0
+2026-07-03 05:04:58,137 | INFO | maps.I_post: min=0.0507586, max=0.259776, mean=0.113938, std=0.0599436
+2026-07-03 05:04:58,137 | INFO | maps.I_post: q01=0.0508923, q05=0.0520725, q50=0.0913495, q95=0.23907, q99=0.255933
+2026-07-03 05:04:58,137 | INFO | Parameter names match between config.json and posterior_samples.npz.
+2026-07-03 05:04:58,137 | INFO | log_axis_orders_threshold=3
+2026-07-03 05:04:58,138 | INFO | Posterior flat view: N=512, D=6
+2026-07-03 05:04:58,138 | INFO | Posterior[tau_rad_hours]: median=25.2859, q16=19.132, q84=32.1143, std=5.53
+2026-07-03 05:04:58,138 | INFO | Posterior[tau_drag_hours]: median=2.58126, q16=2.19108, q84=3.81725, std=0.895
+2026-07-03 05:04:58,138 | INFO | Posterior[planet_fpfs]: median=0.00338833, q16=0.00334921, q84=0.00344826, std=4.85e-05
+2026-07-03 05:04:58,138 | INFO | Posterior[Phibar]: median=2.48702e+06, q16=2.29721e+06, q84=2.56863e+06, std=1.3e+05
+2026-07-03 05:04:58,138 | INFO | Posterior[DPhieq]: median=4.40974e+06, q16=3.92845e+06, q84=4.51846e+06, std=2.58e+05
+2026-07-03 05:04:58,138 | INFO | Posterior[noise_inflation]: median=2.57809, q16=2.49707, q84=2.70148, std=0.0942
+2026-07-03 05:04:58,138 | INFO | Generating plots...
+2026-07-03 05:04:58,139 | INFO | --- phase_curve ---
+2026-07-03 05:04:58,139 | INFO | Plotting phase_curve.png
+2026-07-03 05:04:58,470 | INFO | Saved /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots/phase_curve.png
+2026-07-03 05:04:58,470 | INFO | Finished phase_curve in 0.33 s
+2026-07-03 05:04:58,470 | INFO | --- phase_curve_residuals ---
+2026-07-03 05:04:58,470 | INFO | Plotting phase_curve_residuals.png
+2026-07-03 05:04:58,470 | INFO | phase_curve_residuals: dtype=float64, shape=(320,)
+2026-07-03 05:04:58,470 | INFO | phase_curve_residuals: finite=320/320 (100.00%), nonfinite=0
+2026-07-03 05:04:58,470 | INFO | phase_curve_residuals: min=-0.00134326, max=0.000496814, mean=6.36806e-07, std=0.00020354
+2026-07-03 05:04:58,470 | INFO | phase_curve_residuals: q01=-0.000973382, q05=-0.000231941, q50=2.25188e-05, q95=0.000243528, q99=0.000363691
+2026-07-03 05:04:58,679 | INFO | Saved /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots/phase_curve_residuals.png
+2026-07-03 05:04:58,679 | INFO | Finished phase_curve_residuals in 0.21 s
+2026-07-03 05:04:58,679 | INFO | --- posterior_1d ---
+2026-07-03 05:04:58,679 | INFO | Plotting per-parameter 1D posteriors
+2026-07-03 05:04:58,679 | INFO | Flattened samples: N=512, D=6
+2026-07-03 05:04:58,679 | INFO | tau_rad_hours: x-range from central 99.0% posterior mass: lo=15.8705, hi=37.9126, use_log=False
+2026-07-03 05:04:58,954 | INFO | Saved /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots/posterior_1d_tau_rad_hours.png
+2026-07-03 05:04:58,954 | INFO | tau_drag_hours: x-range from central 99.0% posterior mass: lo=1.56812, hi=7.58296, use_log=False
+2026-07-03 05:04:59,165 | INFO | Saved /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots/posterior_1d_tau_drag_hours.png
+2026-07-03 05:04:59,165 | INFO | planet_fpfs: x-range from central 99.0% posterior mass: lo=0.00327259, hi=0.00352581, use_log=False
+2026-07-03 05:04:59,435 | INFO | Saved /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots/posterior_1d_planet_fpfs.png
+2026-07-03 05:04:59,435 | INFO | Phibar: x-range from central 99.0% posterior mass: lo=2e+06, hi=2.65401e+06, use_log=False
+2026-07-03 05:04:59,683 | INFO | Saved /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots/posterior_1d_Phibar.png
+2026-07-03 05:04:59,683 | INFO | DPhieq: x-range from central 99.0% posterior mass: lo=3.4115e+06, hi=4.82231e+06, use_log=False
+2026-07-03 05:04:59,985 | INFO | Saved /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots/posterior_1d_DPhieq.png
+2026-07-03 05:04:59,985 | INFO | noise_inflation: x-range from central 99.0% posterior mass: lo=2.35858, hi=2.89675, use_log=False
+2026-07-03 05:05:00,187 | INFO | Saved /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots/posterior_1d_noise_inflation.png
+2026-07-03 05:05:00,187 | INFO | Finished posterior_1d in 1.51 s
+2026-07-03 05:05:00,188 | INFO | --- corner ---
+2026-07-03 05:05:00,188 | INFO | Plotting corner_posterior.png
+2026-07-03 05:05:00,188 | INFO | Corner plot input: N=512, D=6
+2026-07-03 05:05:00,188 | INFO | corner axis tau_rad_hours: range=(15.870506944849193, 37.91255339857234), log=False, bins=16
+2026-07-03 05:05:00,188 | INFO | corner axis tau_drag_hours: range=(1.5681157111250146, 7.582959613281341), log=False, bins=28
+2026-07-03 05:05:00,188 | INFO | corner axis planet_fpfs: range=(0.0032725871172325366, 0.0035258132447666276), log=False, bins=16
+2026-07-03 05:05:00,188 | INFO | corner axis Phibar: range=(2000000.0, 2654006.716726585), log=False, bins=16
+2026-07-03 05:05:00,189 | INFO | corner axis DPhieq: range=(3411498.617499778, 4822309.136436653), log=False, bins=21
+2026-07-03 05:05:00,189 | INFO | corner axis noise_inflation: range=(2.3585838005464437, 2.8967492221616924), log=False, bins=32
+2026-07-03 05:05:01,360 | INFO | Saved /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots/corner_posterior.png
+2026-07-03 05:05:01,360 | INFO | Finished corner in 1.17 s
+2026-07-03 05:05:01,360 | INFO | --- smc_diagnostics ---
+2026-07-03 05:05:01,360 | INFO | Plotting SMC diagnostics (if present)
+2026-07-03 05:05:01,360 | INFO | smc_betas: dtype=float64, shape=(38,)
+2026-07-03 05:05:01,360 | INFO | smc_betas: finite=38/38 (100.00%), nonfinite=0
+2026-07-03 05:05:01,361 | INFO | smc_betas: min=0, max=1, mean=0.125364, std=0.243368
+2026-07-03 05:05:01,361 | INFO | smc_betas: q01=5.83757e-31, q05=2.91879e-30, q50=0.00760569, q95=0.713832, q99=0.945539
+2026-07-03 05:05:01,361 | INFO | smc_ess: dtype=float64, shape=(37,)
+2026-07-03 05:05:01,361 | INFO | smc_ess: finite=37/37 (100.00%), nonfinite=0
+2026-07-03 05:05:01,361 | INFO | smc_ess: min=47.5535, max=64, mean=57.8734, std=3.86483
+2026-07-03 05:05:01,361 | INFO | smc_ess: q01=47.9785, q05=50.173, q50=58.0733, q95=63.1641, q99=63.7735
+2026-07-03 05:05:01,361 | INFO | smc_acceptance_rate: dtype=float64, shape=(37,)
+2026-07-03 05:05:01,361 | INFO | smc_acceptance_rate: finite=37/37 (100.00%), nonfinite=0
+2026-07-03 05:05:01,361 | INFO | smc_acceptance_rate: min=0.000937284, max=0.999856, mean=0.641057, std=0.426543
+2026-07-03 05:05:01,361 | INFO | smc_acceptance_rate: q01=0.00128779, q05=0.00246228, q50=0.961479, q95=0.999845, q99=0.999853
+2026-07-03 05:05:01,361 | INFO | smc_logZ: dtype=float64, shape=(37,)
+2026-07-03 05:05:01,361 | INFO | smc_logZ: finite=37/37 (100.00%), nonfinite=0
+2026-07-03 05:05:01,361 | INFO | smc_logZ: min=-1.09751, max=2249.49, mean=284.437, std=552.728
+2026-07-03 05:05:01,361 | INFO | smc_logZ: q01=-1.0965, q05=-1.03525, q50=14.2212, q95=1619.92, q99=2129.47
+2026-07-03 05:05:01,361 | INFO | SMC final beta=1 (should be ~1.0 for completed inference)
+2026-07-03 05:05:01,362 | INFO | SMC ESS min fraction=0.743 (lower means worse weight degeneracy)
+/nobackupp17/imalsky/MY_SWAMP/retrieval/scripts/plot_smc.py:499: UserWarning: The figure layout has changed to tight
+  fig.tight_layout()
+2026-07-03 05:05:01,947 | INFO | Saved /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots/smc_diagnostics.png
+2026-07-03 05:05:01,947 | INFO | Finished smc_diagnostics in 0.59 s
+2026-07-03 05:05:01,947 | INFO | --- maps ---
+2026-07-03 05:05:01,947 | INFO | Plotting maps.png (if present)
+2026-07-03 05:05:02,612 | INFO | Saved /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots/maps.png
+2026-07-03 05:05:02,612 | INFO | Finished maps in 0.67 s
+2026-07-03 05:05:02,613 | INFO | --- disk_renders ---
+2026-07-03 05:05:02,613 | INFO | Plotting disk renders (if possible)
+2026-07-03 05:05:05,606 | INFO | y_truth is NaN (real-data run); skipping truth disk renders.
+INFO:2026-07-03 05:05:09,006:jax._src.xla_bridge:752: Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+2026-07-03 05:05:09,006 | INFO | Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+2026-07-03 05:05:40,210 | INFO | Saved /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots/disk_renders_posterior.png
+2026-07-03 05:05:40,211 | INFO | Finished disk_renders in 37.60 s
+2026-07-03 05:05:40,213 | INFO | DONE. Plots saved to /nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots
+2026-07-03 05:05:40,213 | INFO | Log written to /nobackupp17/imalsky/MY_SWAMP/retrieval/wasp_43b_test/outputs/plot.log
+2026-07-03 05:05:40,213 | INFO | === plot_smc diagnostics end (2026-07-03 12:05:40 UTC) ===
+/nobackupp17/imalsky/MY_SWAMP/retrieval/scripts/make_dashboard.py:39: MatplotlibDeprecationWarning: The text.hinting_factor rcParam was deprecated in Matplotlib 3.11 and will be removed in 3.13.
+  plt.style.use(str(_STYLE_FILE))
+/nobackupp17/imalsky/MY_SWAMP/retrieval/scripts/make_dashboard.py:259: UserWarning: No artists with labels found to put in legend.  Note that artists whose label start with an underscore are ignored when legend() is called with no argument.
+  ax.legend(fontsize=8)
+[wrote /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots/results_dashboard.png]
+# Retrieval summary — outputs (real-data pilot)
+
+- preset/model: M=42 dt=120.0s model_days=20.0 (n_steps≈14400), use_x64=True, emission=planck
+- data: n_times=320, observed flux span=7058 ppm, obs_sigma=78 ppm, amplitude/noise=90.3
+- SMC: kernel=mala, N=64, tempering_steps=37, final_beta=1.0000, final_ESS=61.7/64, mean_accept=0.64
+
+## Posterior summary
+
+| param | median | 68% CI | 95% CI |
+|---|---|---|---|
+| tau_rad [h] | 25.3 | [19.1,32.1] | [18.8,34.9] |
+| tau_drag [h] | 2.58 | [2.19,3.82] | [1.86,4.58] |
+| F_p/F_s | 0.00339 | [0.00335,0.00345] | [0.00332,0.0035] |
+| Phibar | 2.49e+06 | [2.3e+06,2.57e+06] | [2.24e+06,2.6e+06] |
+| DPhieq | 4.41e+06 | [3.93e+06,4.52e+06] | [3.67e+06,4.58e+06] |
+| sigma scale | 2.58 | [2.5,2.7] | [2.46,2.79] |
+
+## Posterior correlations (degeneracy structure)
+
+| | tau_rad [h] | tau_drag [h] | F_p/F_s | Phibar | DPhieq | sigma scale |
+|---|---|---|---|---|---|---|
+| tau_rad [h] | +1.00 | -0.55 | +0.00 | -0.84 | -0.42 | +0.13 |
+| tau_drag [h] | -0.55 | +1.00 | -0.06 | +0.12 | +0.08 | -0.33 |
+| F_p/F_s | +0.00 | -0.06 | +1.00 | +0.25 | -0.11 | +0.03 |
+| Phibar | -0.84 | +0.12 | +0.25 | +1.00 | +0.62 | -0.04 |
+| DPhieq | -0.42 | +0.08 | -0.11 | +0.62 | +1.00 | -0.17 |
+| sigma scale | +0.13 | -0.33 | +0.03 | -0.04 | -0.17 | +1.00 |
+
+## Notes
+- `tau_rad` is set by the day-night amplitude (strong); `tau_drag` by the hot-spot offset (weak) and is expected to be broader / correlated with `tau_rad`.
+- priors: tau_rad [h]~log10_uniform[0.5,48], tau_drag [h]~log10_uniform[0.5,48], F_p/F_s~log10_uniform[0.0001,0.008], Phibar~log10_uniform[2e+06,8e+06], DPhieq~log10_uniform[5e+05,5e+06], sigma scale~log10_uniform[0.5,5]
+
+[wrote /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/outputs/RETRIEVAL_SUMMARY.md]
+DONE: outputs in /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/outputs , figures in /nobackup/imalsky/MY_SWAMP/retrieval/wasp_43b_test/plots
+running do_mom
+
+____________________________________________________________________
+Job Resource Usage Summary for 63563.pbs05a.gh.nas.nasa.gov
+
+   CPU Time Used            : 15:10:12
+   Real Memory Used         : 6074688kb
+   Walltime Used            : 15:09:02
+   Exit Status              : 0
+
+   Memory Requested         : 400gb
+   Number of CPUs requested : 72
+   Walltime Requested       : 36:00:00
+
+   Execution Queue          : gpu_long
+   Charged To               : s2458
+
+   Job Stopped              : Fri Jul  3 05:05:44 2026
+____________________________________________________________________

@@ -29,9 +29,8 @@
 #   tail -f retrieval/wasp_43b_test/logs/WASP43B_<jobid>.log
 #
 # Walltime is 36h (vs run.sh's generic 6h) to match run_nas_wasp43b.pbs -- the
-# WASP-43b production config (semi-implicit dt=600 s, 20-day spin-up, 256
-# particles, 30-step mutation chains) is budgeted at 17-21 h without the
-# mixed-precision speedup (~9-12 h with it); 36 h covers the slow case.
+# WASP-43b config (dt=120s, 20-day spin-up, 256 particles) is heavier than the
+# default synthetic-data preset.
 #
 # Env (-v):
 #   CONDA_ENV                 conda env for fetch/prepare + the delegated
@@ -92,10 +91,7 @@ python -u scripts/prepare_wasp43b_observations.py
 export PROJECT_ROOT
 export SWAMP_RETRIEVAL_PRESET="${SWAMP_RETRIEVAL_PRESET:-gpu}"
 export SWAMP_RETRIEVAL_USE_X64="${SWAMP_RETRIEVAL_USE_X64:-1}"
-# Production config (30 h-budget run: semi-implicit dt=600, N=256, per-stage MALA
-# adaptation, eclipse-edge masking). Point at config/wasp43b_pilot_gpu.json to
-# reproduce the 2026-07 pilot instead.
-export SWAMP_RETRIEVAL_OVERRIDES_FILE="${SWAMP_RETRIEVAL_OVERRIDES_FILE:-${SUITE_DIR}/config/wasp43b_production_gpu.json}"
+export SWAMP_RETRIEVAL_OVERRIDES_FILE="${SUITE_DIR}/config/wasp43b_pilot_gpu.json"
 export SWAMP_PLOT_OUT_DIR="${SUITE_DIR}/outputs"
 export SWAMP_PLOTS_DIR="${SUITE_DIR}/plots"
 

@@ -1,0 +1,295 @@
+#!/bin/bash
+#PBS -N SWAMP_SMC
+#PBS -q gpu_long
+#PBS -W group_list=s2458
+#PBS -l select=1:ncpus=72:ngpus=1:mem=400gb:model=gh200
+#PBS -l walltime=08:00:00
+#PBS -j oe
+#
+# =============================================================================
+# Full GPU retrieval on the NASA NAS GH200 cluster: differentiable SWAMP ->
+# phase-curve -> BlackJAX adaptive tempered SMC (gradient-informed MALA
+# kernel). Mirrors retrieval/scripts/run.sh (the JPL/gattaca2 SLURM launcher)
+# but adapted for this system's PBS scheduler + shared read-only conda env,
+# reusing the install/env conventions already proven on this exact node type
+# (model=gh200) by ../../../VULCAN_Project/vulcan-emulator/supercomputer_cmds/*.pbs.
+#
+#   cd /nobackup/$USER/MY_SWAMP
+#   qsub retrieval/scripts/run_nas.pbs
+#
+# LIVE PROGRESS: PBS only delivers the .o file when the job ends, so this
+# also streams everything to a log file you can tail while it runs:
+#   tail -f /nobackup/$USER/MY_SWAMP/retrieval/logs/SWAMP_SMC_<jobid>.log
+#
+# Key differences from run.sh (JPL/gattaca2, SLURM):
+#  * The shared conda env (pyt2_8_gh, default) is READ-ONLY and PyTorch-only
+#    (ships no jax) -- everything this job needs installs with `pip --user`
+#    into a writable PYTHONUSERBASE on /nobackup, never into the shared env
+#    and never into the (small, often over-quota) $HOME.
+#  * Do NOT unset LD_LIBRARY_PATH here (unlike run.sh) -- on this system the
+#    module-provided CUDA path is part of the already-working GPU JAX recipe
+#    (see vulcan-emulator's run_install.sh); the "stray LD_LIBRARY_PATH
+#    shadows the wheel" failure mode is a JPL/x86 A100 issue, not observed here.
+#  * Compute nodes have no direct internet -- pip goes through the NAS proxy.
+#  * jaxoplanet install must NOT use --no-deps (silently drops the hard
+#    equinox/jaxtyping dependency -- exactly what broke gattaca2 job 553507)
+#    and blackjax is capped at <1.4 (1.4+ needs jax/jaxlib>=0.9.0 and would
+#    drag the pinned 0.6.2 jax up, orphaning the CUDA plugin -- the other
+#    half of that same incident).
+#
+# Env (-v):
+#   CONDA_ENV        shared interpreter env, read-only (default: pyt2_8_gh)
+#   JAX_SPEC         jax/jaxlib to install if neither the env nor the user-site
+#                    already has one (default: jax[cuda12]==0.6.2 -- matches
+#                    jaxoplanet 0.1.0, and is the newest cp310 aarch64 CUDA12
+#                    wheel available on GH200)
+#   SWAMP_RETRIEVAL_SCRATCH   scratch root for caches + user-site
+#                    (default /nobackup/$USER/.swamp_retrieval)
+#   HTTPS_PROXY      NAS web proxy for pip (default http://proxy.nas.nasa.gov:3128)
+#   FORCE            1 = reinstall jax/jaxoplanet/blackjax even if importable
+#   SWAMP_RETRIEVAL_PRESET     fast | gpu | prod   (default: gpu)
+#   SWAMP_RETRIEVAL_USE_X64    0 | 1               (default: from preset)
+#   SWAMP_RETRIEVAL_OVERRIDES  JSON of Config overrides
+#   SWAMP_SKIP_INSTALL  1 to skip the dependency install step entirely
+#   SWAMP_SKIP_PLOTS    1 to skip figure generation after the run
+# =============================================================================
+set -euo pipefail
+
+# --- locate the repo (PBS spools the script; use PBS_O_WORKDIR) --------------
+if [ -n "${PROJECT_ROOT:-}" ]; then :
+elif [ -n "${PBS_O_WORKDIR:-}" ] && [ -d "${PBS_O_WORKDIR}/retrieval/scripts" ]; then
+  PROJECT_ROOT="${PBS_O_WORKDIR}"                                  # submitted from MY_SWAMP/
+elif [ -n "${PBS_O_WORKDIR:-}" ] \
+     && [ "$(basename "${PBS_O_WORKDIR}")" = "scripts" ] \
+     && [ "$(basename "$(dirname "${PBS_O_WORKDIR}")")" = "retrieval" ]; then
+  PROJECT_ROOT="$(cd -- "${PBS_O_WORKDIR}/../.." && pwd -P)"       # submitted from retrieval/scripts/
+else
+  _sd="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+  PROJECT_ROOT="$(cd -- "${_sd}/../.." && pwd -P)"                 # direct bash, not qsub
+fi
+if [ ! -d "${PROJECT_ROOT}/retrieval/scripts" ]; then
+  echo "ERROR: submit from the repo root: cd /nobackup/\$USER/MY_SWAMP && qsub retrieval/scripts/run_nas.pbs"
+  exit 1
+fi
+SCRIPT_DIR="${PROJECT_ROOT}/retrieval/scripts"
+cd -P "${SCRIPT_DIR}"   # run_smc.py writes to retrieval/data/ and figures to retrieval/plots/
+
+# --- stream all output to a tail-able log (PBS .o only appears at job end) ---
+LOG_DIR="${PROJECT_ROOT}/retrieval/logs"
+mkdir -p "${LOG_DIR}"
+_jobid="${PBS_JOBID:-manual_$$}"
+LOG_FILE="${LOG_DIR}/SWAMP_SMC_${_jobid%%.*}.log"
+exec > >(tee -a "${LOG_FILE}") 2>&1
+echo "Live log: tail -f ${LOG_FILE}"
+echo "======================================================"
+echo "  Job info:  host=$(hostname)  arch=$(uname -m)  PBS_JOBID=${PBS_JOBID:-<none>}  $(date)"
+echo "======================================================"
+
+# --- caches + user-site off $HOME (small, often over quota) onto /nobackup ---
+: "${SWAMP_RETRIEVAL_SCRATCH:=/nobackup/${USER}/.swamp_retrieval}"
+export PYTHONUSERBASE="${SWAMP_RETRIEVAL_SCRATCH}/userbase"
+export PIP_CACHE_DIR="${SWAMP_RETRIEVAL_SCRATCH}/cache/pip"
+export JAX_COMPILATION_CACHE_DIR="${JAX_COMPILATION_CACHE_DIR:-${SWAMP_RETRIEVAL_SCRATCH}/cache/jax}"
+export XDG_CACHE_HOME="${SWAMP_RETRIEVAL_SCRATCH}/cache/xdg"
+export MPLCONFIGDIR="${SWAMP_RETRIEVAL_SCRATCH}/cache/mpl"
+export CONDA_PKGS_DIRS="${SWAMP_RETRIEVAL_SCRATCH}/conda/pkgs"
+export TMPDIR="${SWAMP_RETRIEVAL_SCRATCH}/tmp"
+unset PYTHONNOUSERSITE   # user-site packages must be importable for --user installs to be seen
+mkdir -p "${PYTHONUSERBASE}" "${PIP_CACHE_DIR}" "${JAX_COMPILATION_CACHE_DIR}" \
+         "${XDG_CACHE_HOME}" "${MPLCONFIGDIR}" "${CONDA_PKGS_DIRS}" "${TMPDIR}"
+echo "SWAMP_RETRIEVAL_SCRATCH=${SWAMP_RETRIEVAL_SCRATCH}"
+
+# --- shared conda env (read-only; activate only, never install into it) ------
+module purge 2>/dev/null || true
+module use -a /swbuild/analytix/tools/modulefiles 2>/dev/null || true
+module load miniconda3/gh2 2>/dev/null || true
+CONDA_BASE="$(conda info --base)"
+# shellcheck disable=SC1091
+source "${CONDA_BASE}/etc/profile.d/conda.sh"
+CONDA_ENV="${CONDA_ENV:-pyt2_8_gh}"
+conda activate "${CONDA_ENV}"
+echo "conda env: ${CONDA_ENV}  ($(which python))"
+
+# --- repo import path (in-tree my_swamp, not pip-installed) -------------------
+export PYTHONPATH="${PROJECT_ROOT}/src:${PROJECT_ROOT}:${PYTHONPATH:-}"
+export HDF5_USE_FILE_LOCKING=FALSE
+export MPLBACKEND=Agg
+export SWAMP_RETRIEVAL_PRESET="${SWAMP_RETRIEVAL_PRESET:-gpu}"
+
+# --- GPU runtime env (same knobs already proven on this node type) -----------
+export XLA_PYTHON_CLIENT_PREALLOCATE="${XLA_PYTHON_CLIENT_PREALLOCATE:-true}"
+export XLA_PYTHON_CLIENT_MEM_FRACTION="${XLA_PYTHON_CLIENT_MEM_FRACTION:-0.90}"
+export XLA_FLAGS="${XLA_FLAGS:---xla_gpu_enable_triton_gemm=false --xla_gpu_autotune_level=0}"
+
+# --- dependencies (pip --user; the shared env stays untouched) ---------------
+if [ "${SWAMP_SKIP_INSTALL:-0}" != "1" ]; then
+  # Compute nodes have no direct internet.
+  export http_proxy="${HTTPS_PROXY:-${http_proxy:-http://proxy.nas.nasa.gov:3128}}"
+  export https_proxy="${http_proxy}" HTTP_PROXY="${http_proxy}" HTTPS_PROXY="${http_proxy}"
+
+  FORCE="${FORCE:-0}"
+  JAX_SPEC="${JAX_SPEC:-jax[cuda12]==0.6.2}"
+
+  # Preflight 1: basic reachability through the proxy.
+  if curl -sSI --max-time 15 https://pypi.org/simple/ >/dev/null 2>&1; then
+    echo "[net] reached PyPI through the proxy (curl)."
+  else
+    echo "[net] WARNING: curl could not reach PyPI through '${http_proxy}' either -- installs below will"
+    echo "      likely fail outright. Check the proxy address/availability first."
+  fi
+
+  # Preflight 2: Python's own SSL trust store, which pip actually uses (this is
+  # what broke jobs 63456/63461: curl succeeded via the SYSTEM CA bundle above,
+  # but this conda env's bundled certifi/openssl CA bundle is stale and can't
+  # verify pypi.org -- "CERTIFICATE_VERIFY_FAILED: unable to get local issuer
+  # certificate". Not a proxy/TLS-interception problem -- curl proves the proxy
+  # passes a legitimate cert through fine). Probe common system CA bundle
+  # locations and point pip at the first one that actually verifies, rather
+  # than disabling verification.
+  if ! python -c "
+import ssl, urllib.request
+urllib.request.urlopen('https://pypi.org/simple/', context=ssl.create_default_context(), timeout=15)
+" >/dev/null 2>&1; then
+    echo "[net] Python's default SSL trust store can't verify PyPI (stale conda ca-certificates) -- probing system CA bundles..."
+    for _cand in /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt \
+                 /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem /etc/ssl/cert.pem; do
+      if [ -f "${_cand}" ] && python -c "
+import ssl, urllib.request, sys
+urllib.request.urlopen('https://pypi.org/simple/', context=ssl.create_default_context(cafile=sys.argv[1]), timeout=15)
+" "${_cand}" >/dev/null 2>&1; then
+        echo "[net] using system CA bundle for pip: ${_cand}"
+        export SSL_CERT_FILE="${_cand}" PIP_CERT="${_cand}" REQUESTS_CA_BUNDLE="${_cand}"
+        break
+      fi
+    done
+    if [ -z "${SSL_CERT_FILE:-}" ]; then
+      echo "[net] WARNING: no working system CA bundle found; pip installs below will likely fail with a cert error."
+      echo "      Fix: refresh this env's trust store, e.g."
+      echo "        conda install -n ${CONDA_ENV} -c conda-forge ca-certificates"
+      echo "      or pre-install once on a LOGIN node into PYTHONUSERBASE=${PYTHONUSERBASE} and resubmit --"
+      echo "      the checks below skip the network entirely once the user-site already has the package."
+    fi
+  else
+    echo "[net] Python's default SSL trust store verifies PyPI fine."
+  fi
+
+  ENV_JAX_VER="$(PYTHONNOUSERSITE=1 python -c 'import importlib.metadata as m;print(m.version("jax"))' 2>/dev/null || true)"
+  USER_JAX_VER="$(python -c 'import importlib.metadata as m;print(m.version("jax"))' 2>/dev/null || true)"
+  if [ -n "${ENV_JAX_VER}" ]; then
+    JAX_PIN="${ENV_JAX_VER}"
+    JAXLIB_PIN="$(PYTHONNOUSERSITE=1 python -c 'import importlib.metadata as m;print(m.version("jaxlib"))' 2>/dev/null || echo "${JAX_PIN}")"
+    STRIP_USERSITE_JAX=1
+    echo "[install] env '${CONDA_ENV}' provides jax ${ENV_JAX_VER}; reusing it (pinning deps to it)."
+  elif [ "${FORCE}" != "1" ] && [ -n "${USER_JAX_VER}" ]; then
+    # Already pip-installed into the user-site (this job or a login-node preinstall) -- reuse it,
+    # no network needed. Without this check every resubmission re-attempted the network install below.
+    JAX_PIN="${USER_JAX_VER}"
+    JAXLIB_PIN="$(python -c 'import importlib.metadata as m;print(m.version("jaxlib"))' 2>/dev/null || echo "${JAX_PIN}")"
+    STRIP_USERSITE_JAX=0
+    echo "[install] user-site already provides jax ${USER_JAX_VER}; reusing it (no network needed; FORCE=1 to reinstall)."
+  else
+    echo "[install] no jax in env or user-site; installing GPU ${JAX_SPEC} into the user-site (aarch64 GH200)."
+    python -m pip install --user -U "${JAX_SPEC}"
+    JAX_PIN="0.6.2"; JAXLIB_PIN="0.6.2"
+    STRIP_USERSITE_JAX=0
+  fi
+
+  CONSTRAINTS="${SWAMP_RETRIEVAL_SCRATCH}/pip-constraints.txt"
+  printf 'jax==%s\njaxlib==%s\n' "${JAX_PIN}" "${JAXLIB_PIN}" > "${CONSTRAINTS}"
+
+  # jaxoplanet: NOT --no-deps -- that silently drops the hard equinox/jaxtyping
+  # dependency and breaks the import (see header). The constraint above keeps
+  # pip from touching the pinned jax/jaxlib while resolving the rest.
+  if [ "${FORCE}" != "1" ] && python -c "import jaxoplanet" 2>/dev/null; then
+    echo "[install] jaxoplanet already importable -- skipping (FORCE=1 to reinstall)"
+  else
+    echo "[install] pip install --user jaxoplanet (constrained to jax==${JAX_PIN})"
+    python -m pip install --user -U -c "${CONSTRAINTS}" jaxoplanet
+  fi
+
+  # blackjax: capped <1.4 -- 1.4+ needs jax/jaxlib>=0.9.0, which would drag the
+  # pin above (again, see header + gattaca2 job 553507).
+  if [ "${FORCE}" != "1" ] && python -c "import blackjax" 2>/dev/null; then
+    echo "[install] blackjax already importable -- skipping (FORCE=1 to reinstall)"
+  else
+    echo "[install] pip install --user 'blackjax>=1.2,<1.4' (constrained to jax==${JAX_PIN})"
+    python -m pip install --user -U -c "${CONSTRAINTS}" "blackjax>=1.2,<1.4"
+  fi
+
+  # my_swamp's own deps -- likely present in pyt2_8_gh already; fill any gaps.
+  MISSING="$(python - <<'PY'
+import importlib.util as u
+req = {"numpy": "numpy", "scipy": "scipy", "matplotlib": "matplotlib", "imageio": "imageio", "corner": "corner>=2.2"}
+print(" ".join(pip for mod, pip in req.items() if u.find_spec(mod) is None))
+PY
+)"
+  if [ -n "${MISSING}" ]; then
+    echo "[install] pip install --user deps (${MISSING}) pinned to jax==${JAX_PIN}"
+    python -m pip install --user -U -c "${CONSTRAINTS}" ${MISSING}
+  else
+    echo "[install] all my_swamp Python deps already present"
+  fi
+
+  # If the shared env ships its own jax, a stray user-site jax would shadow it.
+  if [ "${STRIP_USERSITE_JAX}" = "1" ]; then
+    USERSITE="$(python -c 'import site; print(site.getusersitepackages())' 2>/dev/null || true)"
+    if [ -n "${USERSITE}" ] && [ -d "${USERSITE}" ]; then
+      shopt -s nullglob
+      for stray in "${USERSITE}"/jax "${USERSITE}"/jaxlib "${USERSITE}"/jax_plugins \
+                   "${USERSITE}"/jax-*.dist-info "${USERSITE}"/jaxlib-*.dist-info \
+                   "${USERSITE}"/jax_cuda*; do
+        echo "[install] removing user-site $(basename "${stray}") so the env GPU JAX is used"
+        rm -rf "${stray}"
+      done
+      shopt -u nullglob
+    fi
+  fi
+fi
+
+# --- fail loudly NOW if the version combo is broken, not mid-run -------------
+python - <<'PY'
+import importlib.util as u
+core = ["jax", "numpy", "scipy", "matplotlib", "imageio", "corner", "jaxoplanet", "blackjax"]
+missing = [m for m in core if u.find_spec(m) is None]
+if missing:
+    raise SystemExit(f"ERROR: still missing required modules: {missing}")
+import jaxoplanet
+from jaxoplanet.starry.light_curves import light_curve          # noqa: F401
+from jaxoplanet.starry.surface import Surface                   # noqa: F401
+import blackjax
+from blackjax.smc import adaptive_tempered, resampling          # noqa: F401
+import corner
+print(f"jaxoplanet {jaxoplanet.__version__} | blackjax {getattr(blackjax,'__version__','?')} | corner {corner.__version__} : imports OK")
+PY
+
+# --- GPU / JAX backend verification (ABORT if not GPU under PBS) -------------
+echo "------ JAX backend check ------"
+command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || echo "(no nvidia-smi visible)"
+python - <<'PY'
+import os, sys, jax
+be = jax.default_backend()
+print(f"jax {jax.__version__} | backend={be} | devices={jax.devices()}")
+on_cluster = bool(os.environ.get("PBS_JOBID"))
+if be != "gpu":
+    msg = (f"FATAL: JAX backend is '{be}', expected 'gpu'. Check: nvidia-smi visible, "
+           "jax[cuda12] present in the user-site, no incompatible jax-cuda12-plugin, "
+           "no stray user-site jax shadowing the env's own build.")
+    if on_cluster:
+        sys.exit(msg)            # non-zero -> PBS marks FAILED, no wasted GPU hours
+    print("WARNING (local run): " + msg)
+PY
+
+# --- run the retrieval (single process; outputs -> retrieval/data/) ----------
+echo "======================================================"
+echo "  run_smc.py  (preset=${SWAMP_RETRIEVAL_PRESET})"
+echo "======================================================"
+python -u run_smc.py
+
+# --- figures + summary (non-fatal) -> retrieval/plots/, retrieval/data/ ------
+if [ "${SWAMP_SKIP_PLOTS:-0}" != "1" ]; then
+  echo "------ generating figures + summary ------"
+  python -u plot_smc.py       || echo "WARN: plot_smc.py failed (non-fatal)"
+  python -u make_dashboard.py || echo "WARN: make_dashboard.py failed (non-fatal)"
+  python -u summarize_run.py  || echo "WARN: summarize_run.py failed (non-fatal)"
+fi
+echo "DONE: outputs in ${SWAMP_PLOT_OUT_DIR:-${PROJECT_ROOT}/retrieval/data} , figures in ${SWAMP_PLOTS_DIR:-${PROJECT_ROOT}/retrieval/plots}"

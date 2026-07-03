@@ -115,8 +115,9 @@ def main() -> None:
         def my_run(**kw):
             return _my_scan(return_history=False, **kw)
 
-    # Forced hot-Jupiter regime (matches the parity, sensitivity, and gradient
-    # benchmark figures -- see paper/scripts/benchmark_gradient.py).
+    # Forced, synchronously rotating benchmark regime (matches the parity,
+    # sensitivity, and gradient benchmark figures -- see
+    # paper/scripts/benchmark_gradient.py).
     config = dict(
         M=42, dt=120.0, Phibar=3.0e5, omega=3.2e-5, a=8.2e7, g=9.8,
         test=None, forcflag=True, taurad=10.0 * 3600.0, taudrag=6.0 * 3600.0,
