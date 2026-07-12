@@ -1,4 +1,4 @@
-# Differentiable SWAMP → phase-curve retrieval
+# Differentiable MY_SWAMPE → phase-curve retrieval
 
 **This README is the single human-maintained document for the retrieval suite.**
 Every production choice — numerics, sampler, data preparation, priors, budget —
@@ -7,14 +7,14 @@ are machine-generated per-run artifacts (`RETRIEVAL_SUMMARY.md` in an output
 directory) and provenance JSON; if you find another doc floating around, it is
 stale — fold it in here and delete it.
 
-A downstream **application** of `my_swamp` (not part of the core package). It runs
+A downstream **application** of `my_swampe` (not part of the core package). It runs
 end-to-end Bayesian retrievals that differentiate through the full shallow-water
 time integration to recover a tidally locked planet's **governing forcing
 timescales** (radiative `tau_rad`, drag `tau_drag`, and optionally other GCM
 scalars) from a noisy thermal phase curve:
 
 ```
-parameters → SWAMP (my_swamp) terminal Φ → brightness-temperature map → intensity map
+parameters → MY_SWAMPE (my_swampe) terminal Φ → brightness-temperature map → intensity map
            → starry/jaxoplanet spherical-harmonic phase curve → Gaussian likelihood
 ```
 
@@ -55,11 +55,11 @@ retrieval/
 Use the project conda env (has `jaxoplanet` 0.1.0 + `blackjax` 1.3):
 
 ```bash
-conda activate MY_SWAMP
+conda activate MY_SWAMPE
 ```
 
 `pipeline.py` prepends this working tree's `src/` to `sys.path`, so it always uses
-the in-tree (current, differentiable, x64-aware) `my_swamp`, never a stale
+the in-tree (current, differentiable, x64-aware) `my_swampe`, never a stale
 pip-installed copy.
 
 ## Quickstart
@@ -68,7 +68,7 @@ pip-installed copy.
 cd retrieval/scripts
 
 # fast local CPU smoke retrieval (~2-day spin-up, float32, ~30-55 min) -> ../data/
-SWAMP_RETRIEVAL_PRESET=fast python run_smc.py
+MY_SWAMPE_RETRIEVAL_PRESET=fast python run_smc.py
 
 # figures -> ../plots/ ; recovery report -> ../data/RETRIEVAL_SUMMARY.md
 python plot_smc.py
@@ -82,12 +82,12 @@ python -m pytest tests -q
 ```
 
 No local GPU/conda env? Open `scripts/full_retrieval.ipynb` in Colab:
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/imalsky/MY_SWAMP/blob/master/retrieval/scripts/full_retrieval.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/imalsky/MY_SWAMPE/blob/master/retrieval/scripts/full_retrieval.ipynb)
 
 Presets and overrides (env vars, read before JAX import):
-`SWAMP_RETRIEVAL_PRESET` = `fast` | `gpu` | `prod`; `SWAMP_RETRIEVAL_USE_X64` =
-`0`/`1`; `SWAMP_RETRIEVAL_OVERRIDES` = inline JSON of Config fields;
-`SWAMP_RETRIEVAL_OVERRIDES_FILE` = JSON file of Config fields (how the WASP-43b
+`MY_SWAMPE_RETRIEVAL_PRESET` = `fast` | `gpu` | `prod`; `MY_SWAMPE_RETRIEVAL_USE_X64` =
+`0`/`1`; `MY_SWAMPE_RETRIEVAL_OVERRIDES` = inline JSON of Config fields;
+`MY_SWAMPE_RETRIEVAL_OVERRIDES_FILE` = JSON file of Config fields (how the WASP-43b
 configs are applied).
 
 ---
@@ -105,7 +105,7 @@ sbatch retrieval/wasp_43b_test/run_slurm_wasp43b.sh     # JPL edge GPU (SLURM)
 
 Config: `wasp_43b_test/config/wasp43b_production_gpu.json`. To reproduce the
 2026-07 pilot instead, set
-`SWAMP_RETRIEVAL_OVERRIDES_FILE=.../config/wasp43b_pilot_gpu.json`.
+`MY_SWAMPE_RETRIEVAL_OVERRIDES_FILE=.../config/wasp43b_pilot_gpu.json`.
 
 ### Pilot post-mortem (what this run fixes)
 
@@ -172,7 +172,7 @@ completed and produced a good fit, but had three defects:
 - **Scheme: `semi_implicit=true`, `dt=600 s`, default `K6=1.24e33`,
   `raw_filter=true` (`williams_alpha=0.53`), filter strength `alpha=0.05`,
   `si_alpha=0.5`.** The semi-implicit gravity-wave leapfrog + exponential
-  hyperdiffusion (MY_SWAMP readme §9, CLAUDE.md §13.3) removes the gravity-wave
+  hyperdiffusion (MY_SWAMPE readme §9, CLAUDE.md §13.3) removes the gravity-wave
   dt ceiling that forced the pilot's `dt=120`/`K6=5e33`; ~6× cheaper per
   likelihood evaluation (5× fewer steps, ~17% cheaper steps).
   - **Corner validation** (2026-07-02, `scripts/benchmark_new_numerics.py`
@@ -254,7 +254,7 @@ checkpointing bounds any overrun loss.
   additionally fit an exponential ramp + detector decorrelation. The inferred
   noise inflation absorbs (does not model) residual red noise.
 - The stellar spectrum is approximated as a blackbody in the band weights.
-- The planet map is the terminal SWAMP snapshot, assumed static in the
+- The planet map is the terminal MY_SWAMPE snapshot, assumed static in the
   corotating frame over the 26.5 h visit.
 - Results are conditioned on the one-layer shallow-water forward model and the
   semi-implicit scheme (see above); expect σ-inflation > 1 even after the
@@ -327,11 +327,11 @@ diagnostics, maps, disk renders). All of it is regenerable and gitignored.
 
 ## Tests
 
-`scripts/tests/` (run with `conda run -n MY_SWAMP python -m pytest tests -q`
+`scripts/tests/` (run with `conda run -n MY_SWAMPE python -m pytest tests -q`
 from `retrieval/scripts/`):
 
 - `test_pipeline.py` — config validation, registry, forward parity vs a direct
-  my_swamp call, projector, u-space/prior, likelihood, custom-VJP gradient vs
+  my_swampe call, projector, u-space/prior, likelihood, custom-VJP gradient vs
   finite differences, orientation regression, end-to-end SMC recovery (slow).
 - `test_production_upgrades.py` — preconditioned-MALA invariance on an
   anisotropic Gaussian, non-finite-proposal rejection, `_weighted_scale_diag`,

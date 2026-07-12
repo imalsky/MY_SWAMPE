@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: E741
-"""Generate trusted SWAMPE parity fixtures for my_swamp regression tests."""
+"""Generate trusted SWAMPE parity fixtures for my_swampe regression tests."""
 
 from __future__ import annotations
 

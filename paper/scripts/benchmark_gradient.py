@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark reverse-mode gradient cost and vmap throughput for my_swamp.
+"""Benchmark reverse-mode gradient cost and vmap throughput for my_swampe.
 
 This is the reproducible source for the paper's differentiability performance
 claims: the cost of a reverse-mode gradient of a scalar loss with respect to the
@@ -22,7 +22,7 @@ import os
 
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
 os.environ.setdefault("JAX_PLATFORM_NAME", "cpu")
-os.environ.setdefault("SWAMPE_JAX_ENABLE_X64", "1")
+os.environ.setdefault("MY_SWAMPE_ENABLE_X64", "1")
 os.environ.setdefault("JAX_ENABLE_X64", "1")
 os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 
@@ -39,7 +39,7 @@ import jax.numpy as jnp
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from my_swamp.model import run_model_scan_final  # noqa: E402
+from my_swampe.model import run_model_scan_final  # noqa: E402
 
 jax.config.update("jax_enable_x64", True)
 

@@ -48,7 +48,7 @@ def _x64_enabled() -> bool:
 
 def _make_loss(param_name: str):
     """Build a scalar loss(theta) that runs the model with theta substituted into ``param_name``."""
-    from my_swamp.model import run_model_scan_final
+    from my_swampe.model import run_model_scan_final
 
     def loss_fn(theta: jnp.ndarray) -> jnp.ndarray:
         kwargs = dict(_BASE_KWARGS)
@@ -135,13 +135,13 @@ def test_grad_wrt_initial_phi_field():
     if not _x64_enabled():
         pytest.skip("Autodiff parity tests are gated on x64 mode.")
 
-    from my_swamp.initial_conditions import (
+    from my_swampe.initial_conditions import (
         spectral_params,
         state_var_init,
         test1_init,
         velocity_init,
     )
-    from my_swamp.model import run_model_scan_final
+    from my_swampe.model import run_model_scan_final
 
     M = 42
     N, I, J, dt_default, lambdas, mus, _w = spectral_params(M)

@@ -1,4 +1,4 @@
-# SWAMPE-JAX (`my_swamp`)
+# MY_SWAMPE (`my_swampe`)
 
 A JAX rewrite of the SWAMPE spectral shallow‑water model on the sphere. The
 numerical core runs inside `jax.lax.scan`, so the forward simulation is
@@ -10,7 +10,7 @@ explicit initial conditions.
   reference-fixture runs; ≤ 2×10⁻⁵ % relative error over a 100-day forced,
   synchronously rotating benchmark integration (see the
   [paper](paper/paper.tex)).
-- **Drop-in API**: `from my_swamp.model import run_model` works as a
+- **Drop-in API**: `from my_swampe.model import run_model` works as a
   replacement for `from SWAMPE.model import run_model`.
 - **Differentiable**: `jax.grad`, `jax.jvp`, `jax.jit`, `jax.vmap` work on
   the scan core out of the box.
@@ -24,7 +24,7 @@ Document version: 2026-06-30
 
 ## Citation
 
-If you use `my_swamp` in your research, please cite the accompanying software
+If you use `my_swampe` in your research, please cite the accompanying software
 paper (submitted to the Journal of Open Source Software; the LaTeX source
 lives in [`paper/paper.tex`](paper/paper.tex)) together with the original SWAMPE
 model on which this port is based:
@@ -58,7 +58,7 @@ model on which this port is based:
 
 ## 1. What This Code Does
 
-SWAMPE-JAX implements a single‑layer global spectral shallow‑water model on the sphere using triangular truncation (M = N), Gaussian quadrature in latitude, and FFT in longitude. The model advances:
+MY_SWAMPE implements a single‑layer global spectral shallow‑water model on the sphere using triangular truncation (M = N), Gaussian quadrature in latitude, and FFT in longitude. The model advances:
 
 - `eta`: absolute vorticity (relative vorticity plus Coriolis)
 - `delta`: divergence
@@ -68,8 +68,8 @@ Winds (`U`, `V`) are diagnosed from (`eta`, `delta`) via spectral inversion.
 
 Two time-stepping schemes are available (selected by `expflag`):
 
-- `expflag=False`: modified‑Euler scheme (`src/my_swamp/modEuler_tdiff.py`)
-- `expflag=True`: explicit scheme (`src/my_swamp/explicit_tdiff.py`)
+- `expflag=False`: modified‑Euler scheme (`src/my_swampe/modEuler_tdiff.py`)
+- `expflag=True`: explicit scheme (`src/my_swampe/explicit_tdiff.py`)
 
 The model supports:
 
@@ -80,12 +80,12 @@ The model supports:
 
 ## 2. Package Layout
 
-This repository uses a `src/` layout. The import name is `my_swamp`, but the source lives under `src/my_swamp/`.
+This repository uses a `src/` layout. The import name is `my_swampe`, but the source lives under `src/my_swampe/`.
 
 Repository (high level):
 
 ```
-MY_SWAMP/
+MY_SWAMPE/
 ├── README.md                        # this file (user-facing)
 ├── CLAUDE.md                        # in-repo developer briefing (locked parity, AD rules, validation)
 ├── CONTRIBUTING.md                  # contribution conventions
@@ -93,7 +93,7 @@ MY_SWAMP/
 ├── pyproject.toml                   # build metadata, deps, ruff/pytest config
 ├── setup.py                         # legacy setuptools shim
 ├── src/
-│   └── my_swamp/
+│   └── my_swampe/
 │       ├── __init__.py              # Package entry; sets jax_enable_x64 (configurable via env var)
 │       ├── _version.py              # Version string
 │       ├── dtypes.py                # Centralized dtype selection (float32/64)
@@ -122,7 +122,7 @@ MY_SWAMP/
 ├── scripts/                         # General-purpose, NOT paper-specific (not pytest-collected)
 │   ├── benchmark_scan.py                # forward-scan wall-clock microbenchmark
 │   └── generate_reference_parity_fixtures.py
-├── retrieval/                       # Differentiable SWAMP -> phase-curve retrieval (BlackJAX SMC)
+├── retrieval/                       # Differentiable MY_SWAMPE -> phase-curve retrieval (BlackJAX SMC)
 ├── data/                            # Regenerable .npz data (gitignored)
 └── paper/                           # JOSS paper -- self-contained: text, figures, raw data, generators
     ├── paper.tex, paper.bib, Makefile, README.md, speed_benchmark.md
@@ -146,7 +146,7 @@ Requirements (from `pyproject.toml`):
 - `jax>=0.4.31,<0.5`  
   This repository's validated CPU test matrix is the JAX 0.4 line with NumPy 1.x. `jaxlib` is intentionally not pinned here; follow JAX’s recommended install method for your platform (CPU/GPU/TPU).
 - `matplotlib>=3.7` and `imageio>=2.31`  
-  Used by `my_swamp.plotting` (the module is lazily imported, but these dependencies are included in the default install requirements).
+  Used by `my_swampe.plotting` (the module is lazily imported, but these dependencies are included in the default install requirements).
 
 Editable install from the repository root:
 
@@ -164,11 +164,11 @@ python -m pip install -e . --no-deps
 Precision configuration:
 
 - By default, this package enables JAX 64‑bit mode at import time for closer parity with NumPy SWAMPE.
-- The environment variable `SWAMPE_JAX_ENABLE_X64` controls this behavior (read during import of `my_swamp`):
+- The environment variable `MY_SWAMPE_ENABLE_X64` controls this behavior (read during import of `my_swampe`):
 
 ```bash
-export SWAMPE_JAX_ENABLE_X64=1   # enable float64/complex128 (default behavior)
-export SWAMPE_JAX_ENABLE_X64=0   # disable and use float32/complex64
+export MY_SWAMPE_ENABLE_X64=1   # enable float64/complex128 (default behavior)
+export MY_SWAMPE_ENABLE_X64=0   # disable and use float32/complex64
 ```
 
 ---
@@ -181,37 +181,37 @@ Recommended (after installing, from anywhere on your PATH):
 
 ```bash
 # Forced mode (test=0 maps internally to test=None)
-my-swamp --M 42 --dt 600 --tmax 200 --test 0 --no-plot
+my-swampe --M 42 --dt 600 --tmax 200 --test 0 --no-plot
 
 # Idealized test case 1
-my-swamp --M 42 --dt 600 --tmax 200 --test 1 --no-plot
+my-swampe --M 42 --dt 600 --tmax 200 --test 1 --no-plot
 
 # Idealized test case 2
-my-swamp --M 42 --dt 600 --tmax 200 --test 2 --no-plot
+my-swampe --M 42 --dt 600 --tmax 200 --test 2 --no-plot
 ```
 
-Alternative (module execution). This works once the package is installed, but may emit a Python `RuntimeWarning` because `src/my_swamp/__init__.py` imports `main_function` eagerly; prefer `my-swamp` for a clean CLI run:
+Alternative (module execution). This works once the package is installed, but may emit a Python `RuntimeWarning` because `src/my_swampe/__init__.py` imports `main_function` eagerly; prefer `my-swampe` for a clean CLI run:
 
 ```bash
-python -m my_swamp.main_function --M 42 --dt 600 --tmax 200 --test 0 --no-plot
+python -m my_swampe.main_function --M 42 --dt 600 --tmax 200 --test 0 --no-plot
 ```
 
 No-install development run from the repository root (adds `src/` to `PYTHONPATH`):
 
 ```bash
-PYTHONPATH=src python -m my_swamp.main_function --M 42 --dt 600 --tmax 200 --test 0 --no-plot
+PYTHONPATH=src python -m my_swampe.main_function --M 42 --dt 600 --tmax 200 --test 0 --no-plot
 ```
 
-CLI defaults (from `src/my_swamp/main_function.py`):
+CLI defaults (from `src/my_swampe/main_function.py`):
 
 - Saving is enabled by default (writes pickles under `data/`). Use `--no-save` to disable.
 - Plotting is disabled by default. Use `--plot` to enable.
 - `--plotfreq` controls plotting cadence.
 - `--g` defaults to `9.8` to match the function-level default in
-  `my_swamp.model.run_model`.
+  `my_swampe.model.run_model`.
 
 > Note: the **function-level** defaults of
-> `my_swamp.model.run_model(...)` are `plotflag=True` and `saveflag=True`
+> `my_swampe.model.run_model(...)` are `plotflag=True` and `saveflag=True`
 > (kept for backwards compatibility with the upstream SWAMPE
 > `model.run_model` signature). The **CLI** instead defaults plotting to
 > `False` because most terminal users don't want figures popping up
@@ -224,7 +224,7 @@ CLI defaults (from `src/my_swamp/main_function.py`):
 Use `run_model(...)` for a SWAMPE-style workflow, including optional plotting/saving.
 
 ```python
-from my_swamp.model import run_model
+from my_swampe.model import run_model
 
 out = run_model(
     M=42,
@@ -264,7 +264,7 @@ For optimization/inference where you only need the terminal state (e.g. the fina
 ```python
 import jax
 import jax.numpy as jnp
-from my_swamp.model import run_model_scan
+from my_swampe.model import run_model_scan
 
 sim = run_model_scan(
     M=42,
@@ -295,7 +295,7 @@ Phi = outs["Phi"]    # (t_len, J, I)
 - `jit_scan=True`
 
 ```python
-from my_swamp.model import run_model_gpu
+from my_swampe.model import run_model_gpu
 
 out = run_model_gpu(
     M=42, dt=600.0, tmax=200,
@@ -315,7 +315,7 @@ For optimization/inference you usually only need the terminal state, not the ful
 ```python
 import jax
 import jax.numpy as jnp
-from my_swamp.model import run_model_scan_final
+from my_swampe.model import run_model_scan_final
 
 def loss_fn(DPhieq: float) -> jnp.ndarray:
     sim = run_model_scan_final(
@@ -360,13 +360,13 @@ Example: reverse-mode gradient of a scalar loss with respect to the full initial
 import jax
 import jax.numpy as jnp
 
-from my_swamp.initial_conditions import (
+from my_swampe.initial_conditions import (
     spectral_params,
     test1_init,
     state_var_init,
     velocity_init,
 )
-from my_swamp.model import run_model_scan_final
+from my_swampe.model import run_model_scan_final
 
 M = 42
 N, I, J, dt_default, lambdas, mus, w = spectral_params(M)
@@ -415,10 +415,10 @@ When your parameter vector is small (e.g., 1–10 scalars), forward-mode can be 
 
 If you want a Jacobian-vector product (JVP) or want to avoid `jax.jacfwd` (which computes all tangent directions at once), compute forward-mode gradients in small chunks via JVPs.
 
-This repo provides a helper in `my_swamp.autodiff_utils`:
+This repo provides a helper in `my_swampe.autodiff_utils`:
 
 ```python
-from my_swamp.autodiff_utils import fwd_grad
+from my_swampe.autodiff_utils import fwd_grad
 
 # Full jacfwd (fine for ~5 params)
 g_fwd = fwd_grad(loss, theta0)
@@ -468,8 +468,8 @@ Plots are written under `plots/` by default. This mirrors SWAMPE behavior.
 If you prefer to generate plots manually:
 
 ```python
-from my_swamp.model import run_model_scan
-from my_swamp import plotting
+from my_swampe.model import run_model_scan
+from my_swampe import plotting
 
 sim = run_model_scan(
     M=42, dt=600.0, tmax=200,
@@ -502,7 +502,7 @@ plotting.quiver_geopot_plot(
 
 ### 6c. GIF generation
 
-The plotting module provides helpers for GIF generation using `imageio`. See `src/my_swamp/plotting.py`.
+The plotting module provides helpers for GIF generation using `imageio`. See `src/my_swampe/plotting.py`.
 
 ---
 
@@ -541,7 +541,7 @@ Specifically preserved:
 Differences can arise due to:
 
 - JAX/XLA compilation and algebraic reassociation (~1e-10 atol drift).
-- Different default dtype behavior if `SWAMPE_JAX_ENABLE_X64=0` (much
+- Different default dtype behavior if `MY_SWAMPE_ENABLE_X64=0` (much
   larger drift; not parity-grade).
 - SciPy version differences in `assoc_legendre_p_all` vs `lpmn`
   (negligible at our supported `M` range).
@@ -736,8 +736,8 @@ listed in [`CLAUDE.md`](CLAUDE.md) §5.
 
 ## 12. GPU, Precision, and Performance Notes
 
-- For closest parity with NumPy SWAMPE, leave `SWAMPE_JAX_ENABLE_X64` enabled (default).
-- For faster runs, disable x64 (`SWAMPE_JAX_ENABLE_X64=0`), but expect larger numerical drift.
+- For closest parity with NumPy SWAMPE, leave `MY_SWAMPE_ENABLE_X64` enabled (default).
+- For faster runs, disable x64 (`MY_SWAMPE_ENABLE_X64=0`), but expect larger numerical drift.
 - Use `run_model_scan_final` for training/inference loops where you only need the terminal state.
 - `jit_scan=True` is usually best for performance; disable only for debugging.
 
@@ -797,7 +797,7 @@ skip the in-scan blowup gate for performance. Use `assert_finite_state`
 on the host side to catch silent NaN/Inf propagation:
 
 ```python
-from my_swamp.model import run_model_scan_final, assert_finite_state
+from my_swampe.model import run_model_scan_final, assert_finite_state
 
 sim = run_model_scan_final(M=42, dt=600.0, tmax=10_000, Phibar=3.0e5,
                            omega=7.292e-5, a=6.37122e6, test=None)
@@ -827,7 +827,7 @@ Install the dev dependencies and run the full suite on CPU:
 ```bash
 python -m pip install -U pip
 python -m pip install -e ".[dev]"
-JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 pytest -q
+JAX_PLATFORMS=cpu MY_SWAMPE_ENABLE_X64=1 pytest -q
 ```
 
 You can also run specific subsets using pytest markers:
@@ -848,7 +848,7 @@ the NumPy/SciPy SWAMPE reference. To run tests in 32-bit mode (faster,
 less precise):
 
 ```bash
-export SWAMPE_JAX_ENABLE_X64=0
+export MY_SWAMPE_ENABLE_X64=0
 JAX_PLATFORMS=cpu pytest -q
 ```
 
@@ -856,7 +856,7 @@ To verify that the parity tests correctly gate on x64 (they should fail
 without it):
 
 ```bash
-JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=0 JAX_ENABLE_X64=0 pytest -q -m parity
+JAX_PLATFORMS=cpu MY_SWAMPE_ENABLE_X64=0 JAX_ENABLE_X64=0 pytest -q -m parity
 ```
 
 Parity failures here are expected — this just confirms the x64 guard is
@@ -886,22 +886,22 @@ The test suite lives under `unit_tests/` and covers:
 
 ---
 
-### 14b. SWAMPE vs. MY_SWAMP Long-Run Parity Check (`compare_long_run_parity.py`)
+### 14b. SWAMPE vs. MY_SWAMPE Long-Run Parity Check (`compare_long_run_parity.py`)
 
-This is the main tool for checking that `my_swamp` stays numerically close to the original NumPy SWAMPE reference over long integrations. It is not part of the pytest suite because a useful horizon (100 days) can take several minutes. It also doubles as the source of the JOSS paper's parity figure (100-day window) and CPU speed numbers (10-day window) -- see `paper/benchmark_data/README.md`. It lives in `paper/scripts/` (paper-specific tooling is self-contained under `paper/`; see CLAUDE.md SS2).
+This is the main tool for checking that `my_swampe` stays numerically close to the original NumPy SWAMPE reference over long integrations. It is not part of the pytest suite because a useful horizon (100 days) can take several minutes. It also doubles as the source of the JOSS paper's parity figure (100-day window) and CPU speed numbers (10-day window) -- see `paper/benchmark_data/README.md`. It lives in `paper/scripts/` (paper-specific tooling is self-contained under `paper/`; see CLAUDE.md SS2).
 
 Run it from the repository root:
 
 ```bash
-JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 python paper/scripts/compare_long_run_parity.py --days 100
+JAX_PLATFORMS=cpu MY_SWAMPE_ENABLE_X64=1 python paper/scripts/compare_long_run_parity.py --days 100
 ```
 
 What it does:
-- Runs both `SWAMPE` (NumPy) and `my_swamp` (JAX) with the same forced-mode parameter set.
+- Runs both `SWAMPE` (NumPy) and `my_swampe` (JAX) with the same forced-mode parameter set.
 - Prints per-field error statistics (relative L2, max fractional, RMS fractional, max absolute) to the console.
 - Writes `summary.json` with the full error breakdown and run parameters.
-- Saves `comparison_fields.npz` with the SWAMPE fields, MY_SWAMP fields, and absolute error arrays for `eta`, `delta`, `Phi`, `U`, and `V`.
-- Generates `field_comparison.png` — a grid of side-by-side maps showing the SWAMPE fields, MY_SWAMP fields, and signed fractional differences for each field.
+- Saves `comparison_fields.npz` with the SWAMPE fields, MY_SWAMPE fields, and absolute error arrays for `eta`, `delta`, `Phi`, `U`, and `V`.
+- Generates `field_comparison.png` — a grid of side-by-side maps showing the SWAMPE fields, MY_SWAMPE fields, and signed fractional differences for each field.
 
 All output lands in `paper/figures/long_run_parity_outputs/forced_default_100d/` by default.
 
@@ -918,7 +918,7 @@ python paper/scripts/compare_long_run_parity.py --days 50 --test 1
 python paper/scripts/compare_long_run_parity.py --days 100 --out-dir /tmp/parity_check
 ```
 
-The script requires that the SWAMPE reference package is importable. It looks for it at `../SWAMPE` relative to the `MY_SWAMP` root.
+The script requires that the SWAMPE reference package is importable. It looks for it at `../SWAMPE` relative to the `MY_SWAMPE` root.
 
 ---
 
@@ -927,7 +927,7 @@ The script requires that the SWAMPE reference package is importable. It looks fo
 The regression tests in `test_parity_reference_regression.py` compare against stored `.npz` fixtures generated from the NumPy SWAMPE reference. If you change the numerics intentionally, regenerate them:
 
 ```bash
-JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 python scripts/generate_reference_parity_fixtures.py
+JAX_PLATFORMS=cpu MY_SWAMPE_ENABLE_X64=1 python scripts/generate_reference_parity_fixtures.py
 ```
 
 What it does:
@@ -996,19 +996,19 @@ python scripts/benchmark_scan.py --require-x64
 | Topic | Primary locations |
 |---|---|
 | Developer briefing (parity contract, AD rules, validation) | [`CLAUDE.md`](CLAUDE.md) |
-| Model driver (`run_model*`, `assert_finite_state`, `Static`/`RunFlags`/`State`) | `src/my_swamp/model.py` |
-| CLI / legacy interface | `src/my_swamp/main_function.py` |
-| Spectral transforms | `src/my_swamp/spectral_transform.py` |
-| Time stepping | `src/my_swamp/time_stepping.py`, `modEuler_tdiff.py`, `explicit_tdiff.py` |
-| Forcing | `src/my_swamp/forcing.py` |
-| Filters / diffusion | `src/my_swamp/filters.py` |
-| Initial conditions | `src/my_swamp/initial_conditions.py` |
-| Continuation save/load | `src/my_swamp/continuation.py` |
-| Plotting | `src/my_swamp/plotting.py` |
-| Forward-mode AD utils | `src/my_swamp/autodiff_utils.py` |
-| Static/dynamic branching helpers | `src/my_swamp/branching.py` |
-| Backend detection / preflight | `src/my_swamp/backend_preflight.py` |
-| Dtype switch (float32/64) | `src/my_swamp/dtypes.py` |
+| Model driver (`run_model*`, `assert_finite_state`, `Static`/`RunFlags`/`State`) | `src/my_swampe/model.py` |
+| CLI / legacy interface | `src/my_swampe/main_function.py` |
+| Spectral transforms | `src/my_swampe/spectral_transform.py` |
+| Time stepping | `src/my_swampe/time_stepping.py`, `modEuler_tdiff.py`, `explicit_tdiff.py` |
+| Forcing | `src/my_swampe/forcing.py` |
+| Filters / diffusion | `src/my_swampe/filters.py` |
+| Initial conditions | `src/my_swampe/initial_conditions.py` |
+| Continuation save/load | `src/my_swampe/continuation.py` |
+| Plotting | `src/my_swampe/plotting.py` |
+| Forward-mode AD utils | `src/my_swampe/autodiff_utils.py` |
+| Static/dynamic branching helpers | `src/my_swampe/branching.py` |
+| Backend detection / preflight | `src/my_swampe/backend_preflight.py` |
+| Dtype switch (float32/64) | `src/my_swampe/dtypes.py` |
 | Transform/unit tests | `unit_tests/test_transform_stack.py` |
 | Autodiff tests | `unit_tests/test_autodiff.py` |
 | Continuation round-trip test | `unit_tests/test_continuation_roundtrip.py` |

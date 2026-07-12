@@ -11,10 +11,10 @@ double precision by default. For closest numerical parity, this package enables
 JAX 64-bit mode by default at import time.
 
 You can override this behavior by setting the environment variable
-``SWAMPE_JAX_ENABLE_X64`` before importing this package:
+``MY_SWAMPE_ENABLE_X64`` before importing this package:
 
-  - ``SWAMPE_JAX_ENABLE_X64=1``  -> enable float64/complex128 (default)
-  - ``SWAMPE_JAX_ENABLE_X64=0``  -> disable and use float32/complex64
+  - ``MY_SWAMPE_ENABLE_X64=1``  -> enable float64/complex128 (default)
+  - ``MY_SWAMPE_ENABLE_X64=0``  -> disable and use float32/complex64
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ from ._version import __version__
 try:
     from jax import config as _config
 
-    _env_x64 = _os.getenv("SWAMPE_JAX_ENABLE_X64")
+    _env_x64 = _os.getenv("MY_SWAMPE_ENABLE_X64")
     if _env_x64 is None:
         _config.update("jax_enable_x64", True)
     else:
@@ -95,7 +95,7 @@ __all__ = [
 
 
 def main(*args: Any, **kwargs: Any) -> Any:
-    """Forward to :func:`my_swamp.main_function.main` without eager CLI import.
+    """Forward to :func:`my_swampe.main_function.main` without eager CLI import.
     
     Parameters
     ----------
@@ -120,7 +120,7 @@ def __getattr__(name: str) -> Any:
     Notes
     -----
     Using ``importlib.import_module`` avoids recursion when users do
-    ``from my_swamp import plotting`` or ``from my_swamp import main_function``.
+    ``from my_swampe import plotting`` or ``from my_swampe import main_function``.
     
     Parameters
     ----------

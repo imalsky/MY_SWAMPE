@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH -J SWAMP_W43B
-#SBATCH -o SWAMP_W43B.o%j
-#SBATCH -e SWAMP_W43B.e%j
+#SBATCH -J MY_SWAMPE_W43B
+#SBATCH -o MY_SWAMPE_W43B.o%j
+#SBATCH -e MY_SWAMPE_W43B.e%j
 #SBATCH -p gpu
 #SBATCH --mem=24G
 #SBATCH -t 36:00:00
@@ -22,7 +22,7 @@
 # conda env: no NAS proxy, no --user/PYTHONUSERBASE installs, plain `conda
 # activate` + `pip install` straight into the env (same as run.sh).
 #
-#   cd MY_SWAMP && sbatch retrieval/wasp_43b_test/run_slurm_wasp43b.sh
+#   cd MY_SWAMPE && sbatch retrieval/wasp_43b_test/run_slurm_wasp43b.sh
 #
 # LIVE PROGRESS: SLURM's own -o/-e files update live, but this also streams
 # everything to a dedicated log you can tail the same way as the PBS run:
@@ -36,16 +36,16 @@
 # Env (-v):
 #   CONDA_ENV                 conda env for fetch/prepare + the delegated
 #                              run.sh (default: swamp, same as run.sh)
-#   SWAMP_RETRIEVAL_PRESET     fast | gpu | prod   (default: gpu)
-#   SWAMP_RETRIEVAL_USE_X64    0 | 1               (default: 1)
-#   SWAMP_SKIP_INSTALL / SWAMP_SKIP_PLOTS   passed through to run.sh unchanged
+#   MY_SWAMPE_RETRIEVAL_PRESET     fast | gpu | prod   (default: gpu)
+#   MY_SWAMPE_RETRIEVAL_USE_X64    0 | 1               (default: 1)
+#   MY_SWAMPE_SKIP_INSTALL / MY_SWAMPE_SKIP_PLOTS   passed through to run.sh unchanged
 # =============================================================================
 set -euo pipefail
 
 # --- locate the repo (this script lives in retrieval/wasp_43b_test/) --------
 if [ -n "${PROJECT_ROOT:-}" ]; then :
 elif [ -n "${SLURM_SUBMIT_DIR:-}" ] && [ -d "${SLURM_SUBMIT_DIR}/retrieval/wasp_43b_test" ]; then
-  PROJECT_ROOT="${SLURM_SUBMIT_DIR}"                                    # submitted from MY_SWAMP/
+  PROJECT_ROOT="${SLURM_SUBMIT_DIR}"                                    # submitted from MY_SWAMPE/
 elif [ -n "${SLURM_SUBMIT_DIR:-}" ] \
      && [ "$(basename "${SLURM_SUBMIT_DIR}")" = "wasp_43b_test" ]; then
   PROJECT_ROOT="$(cd -- "${SLURM_SUBMIT_DIR}/../.." && pwd -P)"         # submitted from retrieval/wasp_43b_test/
@@ -90,13 +90,13 @@ python -u scripts/prepare_wasp43b_observations.py
 
 # --- delegate to the shared JAX/BlackJAX SLURM launcher with WASP-43b config -
 export PROJECT_ROOT
-export SWAMP_RETRIEVAL_PRESET="${SWAMP_RETRIEVAL_PRESET:-gpu}"
-export SWAMP_RETRIEVAL_USE_X64="${SWAMP_RETRIEVAL_USE_X64:-1}"
+export MY_SWAMPE_RETRIEVAL_PRESET="${MY_SWAMPE_RETRIEVAL_PRESET:-gpu}"
+export MY_SWAMPE_RETRIEVAL_USE_X64="${MY_SWAMPE_RETRIEVAL_USE_X64:-1}"
 # Production config (30 h-budget run: semi-implicit dt=600, N=256, per-stage MALA
 # adaptation, eclipse-edge masking). Point at config/wasp43b_pilot_gpu.json to
 # reproduce the 2026-07 pilot instead.
-export SWAMP_RETRIEVAL_OVERRIDES_FILE="${SWAMP_RETRIEVAL_OVERRIDES_FILE:-${SUITE_DIR}/config/wasp43b_production_gpu.json}"
-export SWAMP_PLOT_OUT_DIR="${SUITE_DIR}/outputs"
-export SWAMP_PLOTS_DIR="${SUITE_DIR}/plots"
+export MY_SWAMPE_RETRIEVAL_OVERRIDES_FILE="${MY_SWAMPE_RETRIEVAL_OVERRIDES_FILE:-${SUITE_DIR}/config/wasp43b_production_gpu.json}"
+export MY_SWAMPE_PLOT_OUT_DIR="${SUITE_DIR}/outputs"
+export MY_SWAMPE_PLOTS_DIR="${SUITE_DIR}/plots"
 
 bash "${RETRIEVAL_DIR}/run.sh"

@@ -6,8 +6,8 @@ import numpy as np
 
 def _small_spectral_setup():
     """Build a compact spectral configuration for parity-quirk tests."""
-    from my_swamp import spectral_transform as st
-    from my_swamp import time_stepping as ts
+    from my_swampe import spectral_transform as st
+    from my_swampe import time_stepping as ts
 
     M = 2
     N = 2
@@ -51,7 +51,7 @@ def _small_spectral_setup():
 
 def test_dayside_mask_is_strict_inequality() -> None:
     """Verify that the dayside mask excludes the two terminator longitudes."""
-    from my_swamp.forcing import Phieqfun
+    from my_swampe.forcing import Phieqfun
     import jax.numpy as jnp
 
     lambdas = jnp.asarray([-jnp.pi / 2, 0.0, jnp.pi / 2])
@@ -65,7 +65,7 @@ def test_dayside_mask_is_strict_inequality() -> None:
 
 def test_rfun_q_clamp_and_no_drag_branch() -> None:
     """Verify the `Q` clamp and drag-disabled branch in `Rfun`."""
-    from my_swamp.forcing import Rfun
+    from my_swampe.forcing import Rfun
     import jax.numpy as jnp
 
     U = jnp.asarray([[2.0, -3.0]])
@@ -85,8 +85,8 @@ def test_rfun_q_clamp_and_no_drag_branch() -> None:
 def test_explicit_delta_is_carry_only_without_forcing_or_diffusion() -> None:
     """Verify that the explicit delta update reduces to the carry term without forcing or diffusion.
     """
-    from my_swamp import explicit_tdiff as exp
-    from my_swamp import spectral_transform as st
+    from my_swampe import explicit_tdiff as exp
+    from my_swampe import spectral_transform as st
 
     s = _small_spectral_setup()
     a = s["arrays"]
@@ -137,8 +137,8 @@ def test_explicit_delta_is_carry_only_without_forcing_or_diffusion() -> None:
 
 def test_modeuler_delta_uses_forced_terms_even_when_forcflag_false() -> None:
     """Verify the preserved forced-term quirk in the modified-Euler delta update."""
-    from my_swamp import modEuler_tdiff as mod
-    from my_swamp import spectral_transform as st
+    from my_swampe import modEuler_tdiff as mod
+    from my_swampe import spectral_transform as st
     import jax.numpy as jnp
 
     s = _small_spectral_setup()
@@ -218,8 +218,8 @@ def test_modeuler_delta_uses_forced_terms_even_when_forcflag_false() -> None:
 
 def test_modeuler_eta_forced_unforced_asymmetry() -> None:
     """Verify the preserved forced/unforced asymmetry in the modified-Euler eta update."""
-    from my_swamp import modEuler_tdiff as mod
-    from my_swamp import spectral_transform as st
+    from my_swampe import modEuler_tdiff as mod
+    from my_swampe import spectral_transform as st
 
     s = _small_spectral_setup()
     a = s["arrays"]

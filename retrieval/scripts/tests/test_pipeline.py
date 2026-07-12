@@ -1,13 +1,13 @@
-"""Correctness tests for the differentiable SWAMP -> phase-curve retrieval pipeline.
+"""Correctness tests for the differentiable MY_SWAMPE -> phase-curve retrieval pipeline.
 
 Covers: config validation, parameter registry, forward determinism + parity
-against a direct my_swamp call, finiteness guards, the starry projector, the
+against a direct my_swampe call, finiteness guards, the starry projector, the
 u-space transform + prior Jacobian, likelihood shape (peaks at truth), the
 custom-VJP gradient vs finite differences, and the expanded-parameter rebuild
 path. A slow marker guards the end-to-end SMC recovery test.
 
-    conda run -n MY_SWAMP python -m pytest retrieval/tests -q
-    conda run -n MY_SWAMP python -m pytest retrieval/tests -q -m "not slow"
+    conda run -n MY_SWAMPE python -m pytest retrieval/tests -q
+    conda run -n MY_SWAMPE python -m pytest retrieval/tests -q -m "not slow"
 """
 
 import math
@@ -111,7 +111,7 @@ def test_intensity_roundtrip_low_order(pipe):
 
 
 # ---------------------------------------------------------------------------
-# Forward model: determinism, parity vs raw my_swamp, finiteness guards
+# Forward model: determinism, parity vs raw my_swampe, finiteness guards
 # ---------------------------------------------------------------------------
 
 
@@ -125,14 +125,14 @@ def test_forward_deterministic_and_finite(pipe):
     assert np.ptp(a) > 5e-4
 
 
-def test_terminal_phi_parity_vs_raw_my_swamp(pipe):
-    """Pipeline terminal Phi must match a direct my_swamp simulate_scan_last call."""
-    import my_swamp.model as swm
+def test_terminal_phi_parity_vs_raw_my_swampe(pipe):
+    """Pipeline terminal Phi must match a direct my_swampe simulate_scan_last call."""
+    import my_swampe.model as swm
     cfg = pipe.cfg
     dt = pipe.dtype
     tr_s = jnp.asarray(3600.0 * cfg.taurad_true_hours, dt)
     td_s = jnp.asarray(3600.0 * cfg.taudrag_true_hours, dt)
-    phi_pipe = np.asarray(pipe.swamp_terminal_phi(
+    phi_pipe = np.asarray(pipe.swampe_terminal_phi(
         tr_s, td_s, Phibar=jnp.asarray(cfg.Phibar, dt), DPhieq=jnp.asarray(cfg.DPhieq, dt),
         K6=jnp.asarray(cfg.K6, dt), K6Phi=None, omega=jnp.asarray(cfg.omega_rad_s, dt),
         a=jnp.asarray(cfg.a_planet_m, dt), g=jnp.asarray(cfg.g_m_s2, dt)))
@@ -394,6 +394,23 @@ def test_phi_to_temperature_accepts_sampled_phibar(pipe):
     T_default = np.asarray(pipe.phi_to_temperature(phi))
     T_shifted = np.asarray(pipe.phi_to_temperature(phi, Phibar=pipe.cfg.Phibar + 3.78e3 * 100.0))
     assert np.allclose(T_shifted - T_default, 100.0, atol=1e-3)
+
+
+def test_phi_to_temperature_never_negative(pipe):
+    """T is floored at Tmin_K > 0 even for pathological phi << -Phibar, so no
+    downstream consumer (Planck emission, maps, plots) can ever see T <= 0."""
+    phi = jnp.full((4, 8), -10.0 * float(pipe.cfg.Phibar), pipe.dtype)
+    T = np.asarray(pipe.phi_to_temperature(phi))
+    assert np.all(np.isfinite(T))
+    assert np.all(T >= pipe.cfg.Tmin_K)
+    assert np.all(T > 0.0)
+
+
+def test_config_rejects_nonpositive_Tmin():
+    with pytest.raises(ValueError, match="Tmin_K"):
+        P.validate_config(P.fast_cpu_config(Tmin_K=0.0))
+    with pytest.raises(ValueError, match="Tmin_K"):
+        P.validate_config(P.fast_cpu_config(Tmin_K=-5.0))
 
 
 def test_noise_inflation_spec_is_last_and_scales_likelihood():

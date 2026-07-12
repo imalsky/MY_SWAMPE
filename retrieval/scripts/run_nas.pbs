@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -N SWAMP_SMC
+#PBS -N MY_SWAMPE_SMC
 #PBS -q gpu_long
 #PBS -W group_list=s2458
 #PBS -l select=1:ncpus=72:ngpus=1:mem=400gb:model=gh200
@@ -7,19 +7,19 @@
 #PBS -j oe
 #
 # =============================================================================
-# Full GPU retrieval on the NASA NAS GH200 cluster: differentiable SWAMP ->
+# Full GPU retrieval on the NASA NAS GH200 cluster: differentiable MY_SWAMPE ->
 # phase-curve -> BlackJAX adaptive tempered SMC (gradient-informed MALA
 # kernel). Mirrors retrieval/scripts/run.sh (the JPL/gattaca2 SLURM launcher)
 # but adapted for this system's PBS scheduler + shared read-only conda env,
 # reusing the install/env conventions already proven on this exact node type
 # (model=gh200) by ../../../VULCAN_Project/vulcan-emulator/supercomputer_cmds/*.pbs.
 #
-#   cd /nobackup/$USER/MY_SWAMP
+#   cd /nobackup/$USER/MY_SWAMPE
 #   qsub retrieval/scripts/run_nas.pbs
 #
 # LIVE PROGRESS: PBS only delivers the .o file when the job ends, so this
 # also streams everything to a log file you can tail while it runs:
-#   tail -f /nobackup/$USER/MY_SWAMP/retrieval/logs/SWAMP_SMC_<jobid>.log
+#   tail -f /nobackup/$USER/MY_SWAMPE/retrieval/logs/MY_SWAMPE_SMC_<jobid>.log
 #
 # Key differences from run.sh (JPL/gattaca2, SLURM):
 #  * The shared conda env (pyt2_8_gh, default) is READ-ONLY and PyTorch-only
@@ -43,22 +43,22 @@
 #                    already has one (default: jax[cuda12]==0.6.2 -- matches
 #                    jaxoplanet 0.1.0, and is the newest cp310 aarch64 CUDA12
 #                    wheel available on GH200)
-#   SWAMP_RETRIEVAL_SCRATCH   scratch root for caches + user-site
-#                    (default /nobackup/$USER/.swamp_retrieval)
+#   MY_SWAMPE_RETRIEVAL_SCRATCH   scratch root for caches + user-site
+#                    (default /nobackup/$USER/.swampe_retrieval)
 #   HTTPS_PROXY      NAS web proxy for pip (default http://proxy.nas.nasa.gov:3128)
 #   FORCE            1 = reinstall jax/jaxoplanet/blackjax even if importable
-#   SWAMP_RETRIEVAL_PRESET     fast | gpu | prod   (default: gpu)
-#   SWAMP_RETRIEVAL_USE_X64    0 | 1               (default: from preset)
-#   SWAMP_RETRIEVAL_OVERRIDES  JSON of Config overrides
-#   SWAMP_SKIP_INSTALL  1 to skip the dependency install step entirely
-#   SWAMP_SKIP_PLOTS    1 to skip figure generation after the run
+#   MY_SWAMPE_RETRIEVAL_PRESET     fast | gpu | prod   (default: gpu)
+#   MY_SWAMPE_RETRIEVAL_USE_X64    0 | 1               (default: from preset)
+#   MY_SWAMPE_RETRIEVAL_OVERRIDES  JSON of Config overrides
+#   MY_SWAMPE_SKIP_INSTALL  1 to skip the dependency install step entirely
+#   MY_SWAMPE_SKIP_PLOTS    1 to skip figure generation after the run
 # =============================================================================
 set -euo pipefail
 
 # --- locate the repo (PBS spools the script; use PBS_O_WORKDIR) --------------
 if [ -n "${PROJECT_ROOT:-}" ]; then :
 elif [ -n "${PBS_O_WORKDIR:-}" ] && [ -d "${PBS_O_WORKDIR}/retrieval/scripts" ]; then
-  PROJECT_ROOT="${PBS_O_WORKDIR}"                                  # submitted from MY_SWAMP/
+  PROJECT_ROOT="${PBS_O_WORKDIR}"                                  # submitted from MY_SWAMPE/
 elif [ -n "${PBS_O_WORKDIR:-}" ] \
      && [ "$(basename "${PBS_O_WORKDIR}")" = "scripts" ] \
      && [ "$(basename "$(dirname "${PBS_O_WORKDIR}")")" = "retrieval" ]; then
@@ -68,7 +68,7 @@ else
   PROJECT_ROOT="$(cd -- "${_sd}/../.." && pwd -P)"                 # direct bash, not qsub
 fi
 if [ ! -d "${PROJECT_ROOT}/retrieval/scripts" ]; then
-  echo "ERROR: submit from the repo root: cd /nobackup/\$USER/MY_SWAMP && qsub retrieval/scripts/run_nas.pbs"
+  echo "ERROR: submit from the repo root: cd /nobackup/\$USER/MY_SWAMPE && qsub retrieval/scripts/run_nas.pbs"
   exit 1
 fi
 SCRIPT_DIR="${PROJECT_ROOT}/retrieval/scripts"
@@ -78,7 +78,7 @@ cd -P "${SCRIPT_DIR}"   # run_smc.py writes to retrieval/data/ and figures to re
 LOG_DIR="${PROJECT_ROOT}/retrieval/logs"
 mkdir -p "${LOG_DIR}"
 _jobid="${PBS_JOBID:-manual_$$}"
-LOG_FILE="${LOG_DIR}/SWAMP_SMC_${_jobid%%.*}.log"
+LOG_FILE="${LOG_DIR}/MY_SWAMPE_SMC_${_jobid%%.*}.log"
 exec > >(tee -a "${LOG_FILE}") 2>&1
 echo "Live log: tail -f ${LOG_FILE}"
 echo "======================================================"
@@ -86,18 +86,18 @@ echo "  Job info:  host=$(hostname)  arch=$(uname -m)  PBS_JOBID=${PBS_JOBID:-<n
 echo "======================================================"
 
 # --- caches + user-site off $HOME (small, often over quota) onto /nobackup ---
-: "${SWAMP_RETRIEVAL_SCRATCH:=/nobackup/${USER}/.swamp_retrieval}"
-export PYTHONUSERBASE="${SWAMP_RETRIEVAL_SCRATCH}/userbase"
-export PIP_CACHE_DIR="${SWAMP_RETRIEVAL_SCRATCH}/cache/pip"
-export JAX_COMPILATION_CACHE_DIR="${JAX_COMPILATION_CACHE_DIR:-${SWAMP_RETRIEVAL_SCRATCH}/cache/jax}"
-export XDG_CACHE_HOME="${SWAMP_RETRIEVAL_SCRATCH}/cache/xdg"
-export MPLCONFIGDIR="${SWAMP_RETRIEVAL_SCRATCH}/cache/mpl"
-export CONDA_PKGS_DIRS="${SWAMP_RETRIEVAL_SCRATCH}/conda/pkgs"
-export TMPDIR="${SWAMP_RETRIEVAL_SCRATCH}/tmp"
+: "${MY_SWAMPE_RETRIEVAL_SCRATCH:=/nobackup/${USER}/.swampe_retrieval}"
+export PYTHONUSERBASE="${MY_SWAMPE_RETRIEVAL_SCRATCH}/userbase"
+export PIP_CACHE_DIR="${MY_SWAMPE_RETRIEVAL_SCRATCH}/cache/pip"
+export JAX_COMPILATION_CACHE_DIR="${JAX_COMPILATION_CACHE_DIR:-${MY_SWAMPE_RETRIEVAL_SCRATCH}/cache/jax}"
+export XDG_CACHE_HOME="${MY_SWAMPE_RETRIEVAL_SCRATCH}/cache/xdg"
+export MPLCONFIGDIR="${MY_SWAMPE_RETRIEVAL_SCRATCH}/cache/mpl"
+export CONDA_PKGS_DIRS="${MY_SWAMPE_RETRIEVAL_SCRATCH}/conda/pkgs"
+export TMPDIR="${MY_SWAMPE_RETRIEVAL_SCRATCH}/tmp"
 unset PYTHONNOUSERSITE   # user-site packages must be importable for --user installs to be seen
 mkdir -p "${PYTHONUSERBASE}" "${PIP_CACHE_DIR}" "${JAX_COMPILATION_CACHE_DIR}" \
          "${XDG_CACHE_HOME}" "${MPLCONFIGDIR}" "${CONDA_PKGS_DIRS}" "${TMPDIR}"
-echo "SWAMP_RETRIEVAL_SCRATCH=${SWAMP_RETRIEVAL_SCRATCH}"
+echo "MY_SWAMPE_RETRIEVAL_SCRATCH=${MY_SWAMPE_RETRIEVAL_SCRATCH}"
 
 # --- shared conda env (read-only; activate only, never install into it) ------
 module purge 2>/dev/null || true
@@ -110,11 +110,11 @@ CONDA_ENV="${CONDA_ENV:-pyt2_8_gh}"
 conda activate "${CONDA_ENV}"
 echo "conda env: ${CONDA_ENV}  ($(which python))"
 
-# --- repo import path (in-tree my_swamp, not pip-installed) -------------------
+# --- repo import path (in-tree my_swampe, not pip-installed) -------------------
 export PYTHONPATH="${PROJECT_ROOT}/src:${PROJECT_ROOT}:${PYTHONPATH:-}"
 export HDF5_USE_FILE_LOCKING=FALSE
 export MPLBACKEND=Agg
-export SWAMP_RETRIEVAL_PRESET="${SWAMP_RETRIEVAL_PRESET:-gpu}"
+export MY_SWAMPE_RETRIEVAL_PRESET="${MY_SWAMPE_RETRIEVAL_PRESET:-gpu}"
 
 # --- GPU runtime env (same knobs already proven on this node type) -----------
 export XLA_PYTHON_CLIENT_PREALLOCATE="${XLA_PYTHON_CLIENT_PREALLOCATE:-true}"
@@ -122,7 +122,7 @@ export XLA_PYTHON_CLIENT_MEM_FRACTION="${XLA_PYTHON_CLIENT_MEM_FRACTION:-0.90}"
 export XLA_FLAGS="${XLA_FLAGS:---xla_gpu_enable_triton_gemm=false --xla_gpu_autotune_level=0}"
 
 # --- dependencies (pip --user; the shared env stays untouched) ---------------
-if [ "${SWAMP_SKIP_INSTALL:-0}" != "1" ]; then
+if [ "${MY_SWAMPE_SKIP_INSTALL:-0}" != "1" ]; then
   # Compute nodes have no direct internet.
   export http_proxy="${HTTPS_PROXY:-${http_proxy:-http://proxy.nas.nasa.gov:3128}}"
   export https_proxy="${http_proxy}" HTTP_PROXY="${http_proxy}" HTTPS_PROXY="${http_proxy}"
@@ -194,7 +194,7 @@ urllib.request.urlopen('https://pypi.org/simple/', context=ssl.create_default_co
     STRIP_USERSITE_JAX=0
   fi
 
-  CONSTRAINTS="${SWAMP_RETRIEVAL_SCRATCH}/pip-constraints.txt"
+  CONSTRAINTS="${MY_SWAMPE_RETRIEVAL_SCRATCH}/pip-constraints.txt"
   printf 'jax==%s\njaxlib==%s\n' "${JAX_PIN}" "${JAXLIB_PIN}" > "${CONSTRAINTS}"
 
   # jaxoplanet: NOT --no-deps -- that silently drops the hard equinox/jaxtyping
@@ -216,7 +216,7 @@ urllib.request.urlopen('https://pypi.org/simple/', context=ssl.create_default_co
     python -m pip install --user -U -c "${CONSTRAINTS}" "blackjax>=1.2,<1.4"
   fi
 
-  # my_swamp's own deps -- likely present in pyt2_8_gh already; fill any gaps.
+  # my_swampe's own deps -- likely present in pyt2_8_gh already; fill any gaps.
   MISSING="$(python - <<'PY'
 import importlib.util as u
 req = {"numpy": "numpy", "scipy": "scipy", "matplotlib": "matplotlib", "imageio": "imageio", "corner": "corner>=2.2"}
@@ -227,7 +227,7 @@ PY
     echo "[install] pip install --user deps (${MISSING}) pinned to jax==${JAX_PIN}"
     python -m pip install --user -U -c "${CONSTRAINTS}" ${MISSING}
   else
-    echo "[install] all my_swamp Python deps already present"
+    echo "[install] all my_swampe Python deps already present"
   fi
 
   # If the shared env ships its own jax, a stray user-site jax would shadow it.
@@ -281,15 +281,15 @@ PY
 
 # --- run the retrieval (single process; outputs -> retrieval/data/) ----------
 echo "======================================================"
-echo "  run_smc.py  (preset=${SWAMP_RETRIEVAL_PRESET})"
+echo "  run_smc.py  (preset=${MY_SWAMPE_RETRIEVAL_PRESET})"
 echo "======================================================"
 python -u run_smc.py
 
 # --- figures + summary (non-fatal) -> retrieval/plots/, retrieval/data/ ------
-if [ "${SWAMP_SKIP_PLOTS:-0}" != "1" ]; then
+if [ "${MY_SWAMPE_SKIP_PLOTS:-0}" != "1" ]; then
   echo "------ generating figures + summary ------"
   python -u plot_smc.py       || echo "WARN: plot_smc.py failed (non-fatal)"
   python -u make_dashboard.py || echo "WARN: make_dashboard.py failed (non-fatal)"
   python -u summarize_run.py  || echo "WARN: summarize_run.py failed (non-fatal)"
 fi
-echo "DONE: outputs in ${SWAMP_PLOT_OUT_DIR:-${PROJECT_ROOT}/retrieval/data} , figures in ${SWAMP_PLOTS_DIR:-${PROJECT_ROOT}/retrieval/plots}"
+echo "DONE: outputs in ${MY_SWAMPE_PLOT_OUT_DIR:-${PROJECT_ROOT}/retrieval/data} , figures in ${MY_SWAMPE_PLOTS_DIR:-${PROJECT_ROOT}/retrieval/plots}"

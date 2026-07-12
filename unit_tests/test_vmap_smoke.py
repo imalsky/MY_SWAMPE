@@ -47,7 +47,7 @@ def test_vmap_over_DPhieq_returns_finite_distinct_terminal_phi() -> None:
     if not _x64_enabled():
         pytest.skip("Ensemble parity check requires x64.")
 
-    from my_swamp.model import run_model_scan_final
+    from my_swampe.model import run_model_scan_final
 
     DPhieq_stack = jnp.asarray([2.0e6, 4.0e6, 6.0e6])
 
@@ -59,7 +59,7 @@ def test_vmap_over_DPhieq_returns_finite_distinct_terminal_phi() -> None:
     Phi_np = np.asarray(Phi_stack)
 
     # Shape: (ensemble_size, J, I).
-    from my_swamp.initial_conditions import spectral_params
+    from my_swampe.initial_conditions import spectral_params
     _N, I, J, _dt, _l, _m, _w = spectral_params(_BASE_KWARGS["M"])
     assert Phi_np.shape == (DPhieq_stack.shape[0], J, I)
     assert np.all(np.isfinite(Phi_np)), "vmap output contains NaN/Inf"

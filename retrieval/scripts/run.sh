@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH -J SWAMP_SMC
-#SBATCH -o SWAMP_SMC.o%j
-#SBATCH -e SWAMP_SMC.e%j
+#SBATCH -J MY_SWAMPE_SMC
+#SBATCH -o MY_SWAMPE_SMC.o%j
+#SBATCH -e MY_SWAMPE_SMC.e%j
 #SBATCH -p gpu
 # Sized for the actual ~1-2 h GPU-bound run (+ setup buffer) so the job BACKFILLS
 # into short gaps instead of waiting for a 48 h opening. The GPU is the only hard
@@ -17,7 +17,7 @@
 #SBATCH --mail-user=isaac.n.malsky@jpl.nasa.gov
 
 # =============================================================================
-# Full GPU retrieval: differentiable SWAMP -> phase-curve -> BlackJAX adaptive
+# Full GPU retrieval: differentiable MY_SWAMPE -> phase-curve -> BlackJAX adaptive
 # tempered SMC (gradient-informed MALA kernel). Submit with `sbatch run.sh` on
 # the JPL edge GPU cluster. The 'gpu' preset runs a large 512-particle swarm
 # (vmapped -> the whole swarm advances at once on the A100/H100), 20-day spin-up,
@@ -32,14 +32,14 @@
 #  * Single process (no srun fan-out / MPI): one GPU, one Python process.
 #
 # Configurable via env:
-#   CONDA_ENV          conda env to activate            (default: MY_SWAMP)
+#   CONDA_ENV          conda env to activate            (default: MY_SWAMPE)
 #   JAX_VERSION        jax/jaxlib version to install     (default: 0.6.2, matches
 #                      the jaxoplanet 0.1.0 the code is validated against)
-#   SWAMP_RETRIEVAL_PRESET     fast | gpu | prod         (default: gpu)
-#   SWAMP_RETRIEVAL_USE_X64    0 | 1                      (default: from preset)
-#   SWAMP_RETRIEVAL_OVERRIDES  JSON of Config overrides   (e.g. tune N/steps)
-#   SWAMP_SKIP_INSTALL 1 to skip the pip install step (env already set up)
-#   SWAMP_SKIP_PLOTS   1 to skip figure generation after the run
+#   MY_SWAMPE_RETRIEVAL_PRESET     fast | gpu | prod         (default: gpu)
+#   MY_SWAMPE_RETRIEVAL_USE_X64    0 | 1                      (default: from preset)
+#   MY_SWAMPE_RETRIEVAL_OVERRIDES  JSON of Config overrides   (e.g. tune N/steps)
+#   MY_SWAMPE_SKIP_INSTALL 1 to skip the pip install step (env already set up)
+#   MY_SWAMPE_SKIP_PLOTS   1 to skip figure generation after the run
 # =============================================================================
 set -euo pipefail
 
@@ -47,9 +47,9 @@ echo "======================================================"
 echo "  Job info:  host=$(hostname)  SLURM_JOB_ID=${SLURM_JOB_ID:-<none>}  $(date)"
 echo "======================================================"
 
-# ── Resolve layout: this script is MY_SWAMP/retrieval/scripts/run.sh ──
+# ── Resolve layout: this script is MY_SWAMPE/retrieval/scripts/run.sh ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # retrieval/scripts
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"                 # MY_SWAMP
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"                 # MY_SWAMPE
 cd "$SCRIPT_DIR"   # run_smc.py writes to retrieval/data/ and figures to retrieval/plots/
 
 # ── Conda env (auto-created if missing) ────────────────
@@ -84,18 +84,18 @@ export CUDA_DEVICE_ORDER=PCI_BUS_ID    # do NOT touch CUDA_VISIBLE_DEVICES (SLUR
 # ── Environment ────────────────────────────────────────
 export HDF5_USE_FILE_LOCKING=FALSE
 export PYTHONNOUSERSITE=1
-export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT:${PYTHONPATH:-}"   # working-tree my_swamp
+export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT:${PYTHONPATH:-}"   # working-tree my_swampe
 export MPLBACKEND=Agg
 # One long job that owns the GPU: preallocate to avoid fragmentation through the
 # vmapped scan; raise MEM_FRACTION if you OOM at steady state, lower if at startup.
 export XLA_PYTHON_CLIENT_PREALLOCATE=true
 export XLA_PYTHON_CLIENT_MEM_FRACTION="${XLA_PYTHON_CLIENT_MEM_FRACTION:-0.90}"
 export XLA_FLAGS="${XLA_FLAGS:---xla_gpu_triton_gemm_any=true}"
-export SWAMP_RETRIEVAL_PRESET="${SWAMP_RETRIEVAL_PRESET:-gpu}"
+export MY_SWAMPE_RETRIEVAL_PRESET="${MY_SWAMPE_RETRIEVAL_PRESET:-gpu}"
 
 # ── Dependencies ───────────────────────────────────────
 JAX_VERSION="${JAX_VERSION:-0.6.2}"
-if [ "${SWAMP_SKIP_INSTALL:-0}" != "1" ]; then
+if [ "${MY_SWAMPE_SKIP_INSTALL:-0}" != "1" ]; then
   echo "------ installing GPU JAX + deps (jax[cuda12]==$JAX_VERSION) ------"
   python -m pip install --upgrade "jax[cuda12]==${JAX_VERSION}"
   # jaxoplanet's own requirements (equinox, jax, jaxlib) are all UNPINNED, so
@@ -141,12 +141,12 @@ PY
 
 # ── Run the retrieval (single process; outputs -> retrieval/data/) ──
 echo "======================================================"
-echo "  run_smc.py  (preset=$SWAMP_RETRIEVAL_PRESET)"
+echo "  run_smc.py  (preset=$MY_SWAMPE_RETRIEVAL_PRESET)"
 echo "======================================================"
 python -u run_smc.py
 
 # ── Figures + summary (non-fatal) -> retrieval/plots/, retrieval/data/ ──
-if [ "${SWAMP_SKIP_PLOTS:-0}" != "1" ]; then
+if [ "${MY_SWAMPE_SKIP_PLOTS:-0}" != "1" ]; then
   echo "------ generating figures + summary ------"
   python -u plot_smc.py       || echo "WARN: plot_smc.py failed (non-fatal)"
   python -u make_dashboard.py || echo "WARN: make_dashboard.py failed (non-fatal)"

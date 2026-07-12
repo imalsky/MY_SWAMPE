@@ -1,9 +1,9 @@
-"""my_swamp.autodiff_utils
+"""my_swampe.autodiff_utils
 
 Small utilities for forward-mode autodiff in JAX.
 
 This module intentionally stays lightweight and does not depend on any
-my_swamp-specific model internals.
+my_swampe-specific model internals.
 
 Forward-mode is often the right choice for SWAMPE-style inference/optimization
 when you only differentiate with respect to a handful of scalar parameters.

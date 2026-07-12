@@ -1,4 +1,4 @@
-"""my_swamp.dtypes
+"""my_swampe.dtypes
 
 Centralized dtype choices for the SWAMPE JAX port.
 
@@ -12,8 +12,8 @@ How to control precision
 ------------------------
 Recommended: set the environment variable before importing JAX / this package::
 
-    export SWAMPE_JAX_ENABLE_X64=1   # float64 (the default when unset)
-    export SWAMPE_JAX_ENABLE_X64=0   # float32/complex64 (faster, not parity-grade)
+    export MY_SWAMPE_ENABLE_X64=1   # float64 (the default when unset)
+    export MY_SWAMPE_ENABLE_X64=0   # float32/complex64 (faster, not parity-grade)
 
 You may also set::
 

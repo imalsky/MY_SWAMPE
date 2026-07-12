@@ -1,28 +1,28 @@
 """Pytest setup for the retrieval test suite.
 
-These tests exercise ``retrieval/pipeline.py`` (the differentiable SWAMP ->
+These tests exercise ``retrieval/pipeline.py`` (the differentiable MY_SWAMPE ->
 phase-curve retrieval). They run in float32 (fast) by default; the env var must
-be set BEFORE jax / my_swamp import, so we set it here at module top and add the
-package + retrieval dirs to ``sys.path`` (mirroring my_swamp's own conftest).
+be set BEFORE jax / my_swampe import, so we set it here at module top and add the
+package + retrieval dirs to ``sys.path`` (mirroring my_swampe's own conftest).
 
 Run from the repo root in the project conda env (jaxoplanet + blackjax):
 
-    conda run -n MY_SWAMP python -m pytest retrieval/tests -q
+    conda run -n MY_SWAMPE python -m pytest retrieval/tests -q
 """
 
 import os
 import sys
 from pathlib import Path
 
-# Float32 fast mode for the suite. Must precede any jax/my_swamp import.
-os.environ.setdefault("SWAMPE_JAX_ENABLE_X64", "0")
+# Float32 fast mode for the suite. Must precede any jax/my_swampe import.
+os.environ.setdefault("MY_SWAMPE_ENABLE_X64", "0")
 os.environ.setdefault("JAX_ENABLE_X64", "0")
 os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
 
 _HERE = Path(__file__).resolve()
-_SCRIPTS_DIR = _HERE.parent.parent            # MY_SWAMP/retrieval/scripts (has pipeline.py)
-_REPO_ROOT = _SCRIPTS_DIR.parent.parent       # MY_SWAMP
+_SCRIPTS_DIR = _HERE.parent.parent            # MY_SWAMPE/retrieval/scripts (has pipeline.py)
+_REPO_ROOT = _SCRIPTS_DIR.parent.parent       # MY_SWAMPE
 for p in (str(_REPO_ROOT / "src"), str(_SCRIPTS_DIR)):
     if p not in sys.path:
         sys.path.insert(0, p)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """pipeline.py
 
-Importable, config-parameterized core of the differentiable SWAMP -> starry
+Importable, config-parameterized core of the differentiable MY_SWAMPE -> starry
 phase-curve retrieval. This module factors the forward model, the starry
 projector, the u-space parameterization, the likelihood/prior, and the BlackJAX
 adaptive-tempered-SMC machinery out of the monolithic ``run_smc.py`` driver so
@@ -13,11 +13,11 @@ inference/observation helpers defined here.
 
 x64 / precision
 ---------------
-JAX's x64 flag is process-global and must be set *before* JAX (and ``my_swamp``)
-import. This module reads ``SWAMPE_JAX_ENABLE_X64`` from the environment at import
+JAX's x64 flag is process-global and must be set *before* JAX (and ``my_swampe``)
+import. This module reads ``MY_SWAMPE_ENABLE_X64`` from the environment at import
 time and configures JAX accordingly. ``float_dtype()`` keys off the *actual* JAX
 state, not the Config, so there is never a silent mismatch. To run in float64,
-set ``SWAMPE_JAX_ENABLE_X64=1`` (and ``JAX_ENABLE_X64=1``) in the environment
+set ``MY_SWAMPE_ENABLE_X64=1`` (and ``JAX_ENABLE_X64=1``) in the environment
 before importing this module; :func:`build_pipeline` asserts the live JAX state
 matches ``cfg.use_x64`` and raises a clear error otherwise.
 """
@@ -38,13 +38,13 @@ import numpy as np
 # --- repo / retrieval layout (this file lives in retrieval/scripts/) ----------
 _SCRIPTS_DIR = Path(__file__).resolve().parent           # retrieval/scripts
 RETRIEVAL_ROOT = _SCRIPTS_DIR.parent                     # retrieval/
-REPO_ROOT = RETRIEVAL_ROOT.parent                        # MY_SWAMP/
+REPO_ROOT = RETRIEVAL_ROOT.parent                        # MY_SWAMPE/
 DATA_DIR = RETRIEVAL_ROOT / "data"                       # outputs (npz, config, logs)
 PLOTS_DIR = RETRIEVAL_ROOT / "plots"                     # figures
 STYLE_FILE = _SCRIPTS_DIR / "science.mplstyle"           # publication style guide
 
-# --- use THIS working tree's my_swamp, not a stale pip-installed copy ---------
-# The project conda env may have an older my_swamp installed in site-packages
+# --- use THIS working tree's my_swampe, not a stale pip-installed copy ---------
+# The project conda env may have an older my_swampe installed in site-packages
 # (different build_static signature, hardcoded float64). Prepend the repo src/
 # so the current, differentiable, x64-aware package always wins. Mirrors run.sh's
 # PYTHONPATH and gcmulator's conftest.
@@ -52,9 +52,9 @@ _SRC = REPO_ROOT / "src"
 if _SRC.is_dir() and str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-# --- x64 / backend setup BEFORE importing jax + my_swamp ---------------------
-_X64_ENV = os.environ.get("SWAMPE_JAX_ENABLE_X64", "0").strip().lower() not in ("0", "false", "no", "")
-os.environ.setdefault("SWAMPE_JAX_ENABLE_X64", "1" if _X64_ENV else "0")
+# --- x64 / backend setup BEFORE importing jax + my_swampe ---------------------
+_X64_ENV = os.environ.get("MY_SWAMPE_ENABLE_X64", "0").strip().lower() not in ("0", "false", "no", "")
+os.environ.setdefault("MY_SWAMPE_ENABLE_X64", "1" if _X64_ENV else "0")
 os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 
 import jax
@@ -62,8 +62,8 @@ import jax.numpy as jnp
 
 jax.config.update("jax_enable_x64", _X64_ENV)
 
-import my_swamp.model as swamp_model
-from my_swamp.model import RunFlags, build_static
+import my_swampe.model as swampe_model
+from my_swampe.model import RunFlags, build_static
 
 from jaxoplanet.orbits.keplerian import Body, Central
 from jaxoplanet.starry.light_curves import light_curve as starry_light_curve
@@ -71,7 +71,7 @@ from jaxoplanet.starry.orbit import SurfaceSystem
 from jaxoplanet.starry.surface import Surface
 from jaxoplanet.starry.ylm import Ylm
 
-logger = logging.getLogger("swamp_retrieval")
+logger = logging.getLogger("swampe_retrieval")
 
 # IAU nominal equatorial R_Jup (7.1492e7 m) / nominal R_sun (6.957e8 m).
 # Catalog planet radii (e.g. Esposito et al. 2017's 1.006 Rjup for WASP-43b) are
@@ -95,7 +95,7 @@ class Config:
     """
 
     # I/O & reproducibility
-    out_dir: Path = Path("swamp_jaxoplanet_retrieval_outputs")
+    out_dir: Path = Path("swampe_jaxoplanet_retrieval_outputs")
     seed: int = 7
     log_level: str = "INFO"
     overwrite: bool = True
@@ -103,7 +103,7 @@ class Config:
     # Numeric precision / XLA behavior
     use_x64: bool = False
     xla_preallocate: bool = False
-    # Mixed precision (requires use_x64=True): run the SWAMP dynamics scan —
+    # Mixed precision (requires use_x64=True): run the MY_SWAMPE dynamics scan —
     # which is essentially the entire cost of a likelihood evaluation — in
     # float32, and cast the terminal Phi map to float64 for the emission +
     # starry projection + jaxoplanet light-curve stage. The 2026-06-30 probe
@@ -113,8 +113,8 @@ class Config:
     # Off by default: behavior is bit-identical to the pure-f64 pipeline.
     mixed_precision: bool = False
 
-    # Opt-in MY_SWAMP numerics modes (defaults preserve the locked SWAMPE-parity
-    # scheme bit-for-bit; see MY_SWAMP readme section 9 and CLAUDE.md section 13).
+    # Opt-in MY_SWAMPE numerics modes (defaults preserve the locked SWAMPE-parity
+    # scheme bit-for-bit; see MY_SWAMPE readme section 9 and CLAUDE.md section 13).
     #   semi_implicit : semi-implicit gravity-wave leapfrog + exponential
     #       hyperdiffusion. Stable at much larger dt in the hot-Jupiter regime
     #       (dt=600 s corner-validated for the WASP-43b prior box with
@@ -130,13 +130,13 @@ class Config:
     raw_filter: bool = False
     williams_alpha: float = 0.53
 
-    # SWAMP numerical params (SHAPES) - NOT inferred
+    # MY_SWAMPE numerical params (SHAPES) - NOT inferred
     M: int = 42
     dt_seconds: float = 240.0
     model_days: float = 50.0
     starttime_index: int = 2
 
-    # SWAMP physical params (defaults / truth)
+    # MY_SWAMPE physical params (defaults / truth)
     a_planet_m: float = 8.2e7
     omega_rad_s: float = 3.2e-5
     g_m_s2: float = 9.8
@@ -158,7 +158,7 @@ class Config:
 
     # Phi -> temperature -> intensity (emission layer)
     # emission_temp_mode:
-    #   "geopotential" (default; matches the SWAMPE-JAX paper / Perez-Becker 2013):
+    #   "geopotential" (default; matches the MY_SWAMPE paper / Perez-Becker 2013):
     #        T = (Phibar + Phi) / R_d,  R_d = 3.78e3 J/kg/K. The model's physical
     #        temperature proxy; verified to recover both timescales (strong signal).
     #   "linear": T = T_ref + Phi / phi_to_T_scale (a tunable toy; T_ref=1000,
@@ -364,11 +364,16 @@ def validate_config(cfg: Config) -> None:
             "is a float32 dynamics scan inside an otherwise float64 (light-curve) pipeline."
         )
     if cfg.semi_implicit and cfg.expflag:
-        raise ValueError("cfg.semi_implicit=True is incompatible with cfg.expflag=True (see my_swamp docs).")
+        raise ValueError("cfg.semi_implicit=True is incompatible with cfg.expflag=True (see my_swampe docs).")
     if cfg.mcmc_stage_adapt and str(cfg.smc_mcmc_kernel).strip().lower() != "mala":
         raise ValueError("cfg.mcmc_stage_adapt=True is only implemented for smc_mcmc_kernel='mala'.")
     if cfg.mcmc_stage_adapt and not (float(cfg.mcmc_scale_clip) >= 1.0):
         raise ValueError(f"cfg.mcmc_scale_clip must be >= 1.0, got {cfg.mcmc_scale_clip!r}")
+    if not (float(cfg.Tmin_K) > 0.0):
+        raise ValueError(
+            f"cfg.Tmin_K must be > 0 (it is the floor that keeps phi_to_temperature "
+            f"strictly positive); got {cfg.Tmin_K!r}"
+        )
     if cfg.model_days <= 0:
         raise ValueError("cfg.model_days must be > 0")
     if cfg.dt_seconds <= 0:
@@ -462,7 +467,7 @@ def save_npz(path: Path, **arrays: Any) -> None:
 def call_with_filtered_kwargs(func, kwargs: Dict[str, Any], *, name: Optional[str] = None):
     """Call ``func(**kwargs)`` dropping kwargs the signature doesn't accept.
 
-    Supports multiple my_swamp / jaxoplanet versions whose signatures differ.
+    Supports multiple my_swampe / jaxoplanet versions whose signatures differ.
     """
     fn_name = name or getattr(func, "__name__", repr(func))
     try:
@@ -569,7 +574,7 @@ class Pipeline:
 
     Attributes are assigned by :func:`build_pipeline`. The important callables:
       - ``phase_curve_model(theta)`` / ``phase_curve_model_jit``
-      - ``swamp_terminal_phi(...)``  (terminal Phi map)
+      - ``swampe_terminal_phi(...)``  (terminal Phi map)
       - ``theta_from_u(u)`` / ``log_prior_u(u)`` / ``sample_prior_u(key, n)``
       - ``log_likelihood_u(u)`` / ``loglikelihood_for_blackjax``
       - ``compute_maps_for_theta(theta)``
@@ -589,7 +594,7 @@ def build_pipeline(cfg: Config) -> Pipeline:
     if bool(jax.config.jax_enable_x64) != bool(cfg.use_x64):
         raise RuntimeError(
             f"JAX x64 state ({bool(jax.config.jax_enable_x64)}) != cfg.use_x64 ({bool(cfg.use_x64)}). "
-            "Set SWAMPE_JAX_ENABLE_X64 (and JAX_ENABLE_X64) in the environment BEFORE importing pipeline."
+            "Set MY_SWAMPE_ENABLE_X64 (and JAX_ENABLE_X64) in the environment BEFORE importing pipeline."
         )
 
     dtype = float_dtype()
@@ -611,14 +616,14 @@ def build_pipeline(cfg: Config) -> Pipeline:
              si_alpha=float(cfg.si_alpha), williams_alpha=float(cfg.williams_alpha)),
         name="RunFlags",
     )
-    # A my_swamp too old for these flags would silently drop them above and run
+    # A my_swampe too old for these flags would silently drop them above and run
     # the WRONG scheme — fail loudly instead of producing plausible garbage.
     if bool(cfg.semi_implicit) and not bool(getattr(flags, "semi_implicit", False)):
-        raise RuntimeError("cfg.semi_implicit=True but this my_swamp has no RunFlags.semi_implicit; "
-                           "update my_swamp (needs the 2026-07 semi-implicit scheme).")
+        raise RuntimeError("cfg.semi_implicit=True but this my_swampe has no RunFlags.semi_implicit; "
+                           "update my_swampe (needs the 2026-07 semi-implicit scheme).")
     if bool(cfg.raw_filter) and not bool(getattr(flags, "raw_filter", False)):
-        raise RuntimeError("cfg.raw_filter=True but this my_swamp has no RunFlags.raw_filter; "
-                           "update my_swamp (needs the 2026-07 RAW filter).")
+        raise RuntimeError("cfg.raw_filter=True but this my_swampe has no RunFlags.raw_filter; "
+                           "update my_swampe (needs the 2026-07 RAW filter).")
 
     # ---- static builder (jit-safe after eager warm of the geometry cache) ----
     def _build_static_from_values(*, taurad_s, taudrag_s, Phibar, DPhieq, K6, K6Phi, omega, a, g):
@@ -651,9 +656,9 @@ def build_pipeline(cfg: Config) -> Pipeline:
     t_seq = jnp.arange(cfg.starttime_index, cfg.starttime_index + n_steps, dtype=jnp.int32)
 
     # ---- initial conditions ----
-    init_fn = getattr(swamp_model, "_init_state_from_fields", None) or getattr(swamp_model, "init_state_from_fields", None)
+    init_fn = getattr(swampe_model, "_init_state_from_fields", None) or getattr(swampe_model, "init_state_from_fields", None)
     if init_fn is None:
-        raise RuntimeError("my_swamp.model._init_state_from_fields not found.")
+        raise RuntimeError("my_swampe.model._init_state_from_fields not found.")
 
     def init_rest_state(static):
         Jloc, Iloc = int(static.J), int(static.I)
@@ -861,13 +866,18 @@ def build_pipeline(cfg: Config) -> Pipeline:
     )
     likelihood_baseline_mode = str(cfg.likelihood_baseline_mode).strip().lower()
 
-    # ---- SWAMP forward (terminal Phi) ----
+    # ---- MY_SWAMPE forward (terminal Phi) ----
     _fast_path_ok = (not cfg.force_rebuild_static) and not (
         cfg.infer_Phibar or cfg.infer_DPhieq or cfg.infer_K6 or cfg.infer_K6Phi
         or cfg.infer_omega or cfg.infer_a_planet or cfg.infer_g
     )
 
-    def swamp_terminal_phi(taurad_s, taudrag_s, *, Phibar, DPhieq, K6, K6Phi, omega, a, g):
+    def swampe_terminal_phi(taurad_s, taudrag_s, *, Phibar, DPhieq, K6, K6Phi, omega, a, g,
+                           mixed_precision=None):
+        # mixed_precision=None -> follow cfg; False forces the full-precision
+        # dynamics path (used by the one-off posterior-map evaluation, where the
+        # f32 cast has produced NaN maps on some accelerators).
+        use_mixed = cfg.mixed_precision if mixed_precision is None else bool(mixed_precision)
         if _fast_path_ok:
             static = replace(static_base, taurad=taurad_s, taudrag=taudrag_s)
             state0, U0, V0 = state0_base, U0_base, V0_base
@@ -877,7 +887,7 @@ def build_pipeline(cfg: Config) -> Pipeline:
                 K6=K6, K6Phi=(None if K6Phi is None else K6Phi), omega=omega, a=a, g=g)
             state0, U0, V0 = build_state0(static)
 
-        if cfg.mixed_precision:
+        if use_mixed:
             # f32 dynamics inside the f64 pipeline: cast the static operators
             # (including any traced sampled parameters baked into them) and the
             # initial state down; the terminal Phi is cast back up below, so the
@@ -888,16 +898,16 @@ def build_pipeline(cfg: Config) -> Pipeline:
             V0 = jnp.asarray(V0, dtype=jnp.float32)
 
         def _phi_out(phi):
-            return phi.astype(dtype) if cfg.mixed_precision else phi
+            return phi.astype(dtype) if use_mixed else phi
 
-        sim_last = getattr(swamp_model, "simulate_scan_last", None) or getattr(swamp_model, "run_model_scan_final", None)
+        sim_last = getattr(swampe_model, "simulate_scan_last", None) or getattr(swampe_model, "run_model_scan_final", None)
         if sim_last is not None:
             # `simulate_scan_last` never accepts jit_scan/return_history (it always
             # returns state-only, no history, and doesn't jit internally); only include
             # them for the run_model_scan_final fallback, which does.
             kwargs = dict(static=static, flags=flags, state0=state0, t_seq=t_seq, test=None,
                           Uic=U0, Vic=V0, remat_step=False)
-            if sim_last is not getattr(swamp_model, "simulate_scan_last", None):
+            if sim_last is not getattr(swampe_model, "simulate_scan_last", None):
                 kwargs.update(jit_scan=True, return_history=False)
             out = call_with_filtered_kwargs(sim_last, kwargs, name=getattr(sim_last, "__name__", "simulate_scan_last"))
             last_state = out
@@ -905,9 +915,9 @@ def build_pipeline(cfg: Config) -> Pipeline:
                 last_state = out["last_state"]
             return _phi_out(getattr(last_state, "Phi_curr"))
 
-        step_fn = getattr(swamp_model, "_step_once_state_only", None)
+        step_fn = getattr(swampe_model, "_step_once_state_only", None)
         if step_fn is None:
-            raise RuntimeError("No simulate_scan_last/_step_once_state_only in my_swamp.model.")
+            raise RuntimeError("No simulate_scan_last/_step_once_state_only in my_swampe.model.")
 
         def body(i, st):
             return step_fn(st, t_seq[i], static, flags, None, U0, V0)
@@ -944,7 +954,7 @@ def build_pipeline(cfg: Config) -> Pipeline:
         k6phi_val = p["K6Phi"]
         if k6phi_val is not None:
             k6phi_val = jnp.asarray(k6phi_val, dtype=dtype)
-        phi = swamp_terminal_phi(
+        phi = swampe_terminal_phi(
             taurad_s, taudrag_s, Phibar=jnp.asarray(p["Phibar"], dtype=dtype),
             DPhieq=jnp.asarray(p["DPhieq"], dtype=dtype), K6=jnp.asarray(p["K6"], dtype=dtype),
             K6Phi=k6phi_val, omega=jnp.asarray(p["omega_rad_s"], dtype=dtype),
@@ -1101,17 +1111,21 @@ def build_pipeline(cfg: Config) -> Pipeline:
         loglikelihood_for_blackjax = log_likelihood_u
 
     def compute_maps_for_theta(theta):
+        # One-off diagnostic eval: always run the dynamics at full precision.
+        # The f32 mixed-precision cast NaN'd this single un-vmapped call on a
+        # GH200 (2026-07 WASP-43b run) while the same theta was finite in f64.
         p = _theta_vector_to_model_kwargs(theta)
         taurad_s = jnp.asarray(tau_hours_to_seconds(p["tau_rad_hours"]), dtype=dtype)
         taudrag_s = jnp.asarray(tau_hours_to_seconds(p["tau_drag_hours"]), dtype=dtype)
         k6phi_val = p["K6Phi"]
         if k6phi_val is not None:
             k6phi_val = jnp.asarray(k6phi_val, dtype=dtype)
-        phi = swamp_terminal_phi(
+        phi = swampe_terminal_phi(
             taurad_s, taudrag_s, Phibar=jnp.asarray(p["Phibar"], dtype=dtype),
             DPhieq=jnp.asarray(p["DPhieq"], dtype=dtype), K6=jnp.asarray(p["K6"], dtype=dtype),
             K6Phi=k6phi_val, omega=jnp.asarray(p["omega_rad_s"], dtype=dtype),
-            a=jnp.asarray(p["a_planet_m"], dtype=dtype), g=jnp.asarray(p["g_m_s2"], dtype=dtype))
+            a=jnp.asarray(p["a_planet_m"], dtype=dtype), g=jnp.asarray(p["g_m_s2"], dtype=dtype),
+            mixed_precision=False)
         T = phi_to_temperature(phi, Phibar=p["Phibar"])
         I_map = temperature_to_intensity(T)
         y_dense = intensity_map_to_y_dense(I_map)
@@ -1129,7 +1143,7 @@ def build_pipeline(cfg: Config) -> Pipeline:
         times_days=times_days, times_days_jax=times_days_jax,
         baseline_design_jax=baseline_design_jax,
         orbital_period_days_base=orbital_period_days_base, _fast_path_ok=_fast_path_ok,
-        swamp_terminal_phi=swamp_terminal_phi,
+        swampe_terminal_phi=swampe_terminal_phi,
         phi_to_temperature=phi_to_temperature, temperature_to_intensity=temperature_to_intensity,
         intensity_map_to_y_dense=intensity_map_to_y_dense, ylm_from_dense=ylm_from_dense,
         phase_curve_model=phase_curve_model, phase_curve_model_jit=phase_curve_model_jit,
@@ -1661,7 +1675,7 @@ def gpu_config(**overrides: Any) -> Config:
     20-day spin-up, heteroscedastic photon noise, float64, paper temperature mapping.
 
     The SMC mutation kernel is ``jax.vmap``-ed over particles, so the whole swarm
-    (``smc_num_particles``) advances simultaneously on the device. Per the SWAMPE-JAX
+    (``smc_num_particles``) advances simultaneously on the device. Per the MY_SWAMPE
     paper, A100 throughput SATURATES at a few dozen simultaneous trajectories, so
     **N=64 is the efficient sweet spot** — larger swarms (256/512) fit in memory but
     just queue (no throughput gain) and multiply wall-time. The likelihood uses a

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # ruff: noqa: E741
-"""my_swamp.spectral_transform
+"""my_swampe.spectral_transform
 
 Spectral transform utilities for SWAMPE.
 
@@ -60,7 +60,7 @@ def build_lambdas(I: int, dtype=None) -> jnp.ndarray:
         Number of longitude points.
     dtype : optional
         Floating dtype for the returned array. If omitted, uses
-        :func:`my_swamp.dtypes.float_dtype`.
+        :func:`my_swampe.dtypes.float_dtype`.
     
     Notes
     -----
@@ -90,7 +90,7 @@ def gauss_legendre(J: int, dtype=None) -> Tuple[jnp.ndarray, jnp.ndarray]:
         Number of Gaussian latitude nodes.
     dtype : Any
         Floating dtype for the returned arrays. If omitted, uses
-        :func:`my_swamp.dtypes.float_dtype`.
+        :func:`my_swampe.dtypes.float_dtype`.
     
     Returns
     -------

@@ -4,7 +4,7 @@ plot_smc.py
 
 Plot all results from a completed `run_smc.py` run.
 
-This script NEVER runs SWAMP and NEVER runs inference. It only reads saved outputs from
+This script NEVER runs MY_SWAMPE and NEVER runs inference. It only reads saved outputs from
 OUT_DIR and creates plots under OUT_DIR/plots.
 
 This version adds much more defensive validation + verbose, terminal-friendly logging to help
@@ -16,7 +16,7 @@ diagnose common failure modes:
 - SMC diagnostics indicating weight collapse or stalled tempering
 - optional file load failures (PPC, maps, diagnostics)
 
-No CLI args by design: edit OUT_DIR below if needed (or override via SWAMP_PLOT_OUT_DIR).
+No CLI args by design: edit OUT_DIR below if needed (or override via MY_SWAMPE_PLOT_OUT_DIR).
 """
 
 from __future__ import annotations
@@ -59,6 +59,20 @@ COLOR_BAND = "#56B4E9"       # sky blue (shaded bands / PPC)
 COLOR_DATA = "#000000"       # observed data points
 COLOR_ACCENT = "#009E73"     # bluish green (secondary series, e.g. ESS)
 
+# Publication display transform: math-text labels + unit scaling per parameter.
+# The scale is applied ONCE to samples/prior bounds/truths right after loading,
+# so every downstream panel agrees and no figure sprouts a colliding x10^6
+# offset label. Parameters not listed keep their stored label, unscaled.
+PARAM_DISPLAY: Dict[str, Tuple[str, float]] = {
+    "tau_rad_hours": (r"$\tau_{\mathrm{rad}}$ [h]", 1.0),
+    "tau_drag_hours": (r"$\tau_{\mathrm{drag}}$ [h]", 1.0),
+    "planet_fpfs": (r"$F_p/F_s$ [ppm]", 1.0e6),
+    "planet_radius_rjup": (r"$R_p$ [$R_{\mathrm{Jup}}$]", 1.0),
+    "Phibar": (r"$\bar{\Phi}$ [$10^6\,\mathrm{m^2\,s^{-2}}$]", 1.0e-6),
+    "DPhieq": (r"$\Delta\Phi_{\mathrm{eq}}$ [$10^6\,\mathrm{m^2\,s^{-2}}$]", 1.0e-6),
+    "noise_inflation": (r"noise inflation $k$", 1.0),
+}
+
 # Publication style guide (the project's science.mplstyle, shipped alongside this
 # script). Applied to every figure so retrieval plots match the paper figures.
 _SCRIPTS_DIR = Path(__file__).resolve().parent
@@ -73,15 +87,15 @@ if _STYLE_FILE.exists():
 
 # Layout: this script lives in retrieval/scripts/; data is read from retrieval/data/
 # and figures are written to retrieval/plots/. Override with env vars if needed:
-#   SWAMP_PLOT_OUT_DIR=/path/to/data SWAMP_PLOTS_DIR=/path/to/plots ./plot_smc.py
+#   MY_SWAMPE_PLOT_OUT_DIR=/path/to/data MY_SWAMPE_PLOTS_DIR=/path/to/plots ./plot_smc.py
 _RETRIEVAL_ROOT = _SCRIPTS_DIR.parent
-OUT_DIR = Path(os.environ.get("SWAMP_PLOT_OUT_DIR", str(_RETRIEVAL_ROOT / "data")))
-PLOTS_DIR = Path(os.environ.get("SWAMP_PLOTS_DIR", str(_RETRIEVAL_ROOT / "plots")))
+OUT_DIR = Path(os.environ.get("MY_SWAMPE_PLOT_OUT_DIR", str(_RETRIEVAL_ROOT / "data")))
+PLOTS_DIR = Path(os.environ.get("MY_SWAMPE_PLOTS_DIR", str(_RETRIEVAL_ROOT / "plots")))
 PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Logging verbosity can be overridden without editing the file:
-#   SWAMP_PLOT_LOG_LEVEL=DEBUG ./plot_smc.py
-_LOG_LEVEL_NAME = os.environ.get("SWAMP_PLOT_LOG_LEVEL", "INFO").upper()
+#   MY_SWAMPE_PLOT_LOG_LEVEL=DEBUG ./plot_smc.py
+_LOG_LEVEL_NAME = os.environ.get("MY_SWAMPE_PLOT_LOG_LEVEL", "INFO").upper()
 _LOG_LEVEL = getattr(logging, _LOG_LEVEL_NAME, logging.INFO)
 
 POSTERIOR_VISIBLE_MASS = 0.99
@@ -105,7 +119,7 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(), logging.FileHandler(log_path, mode="w")],
     force=True,
 )
-logger = logging.getLogger("swamp_plot")
+logger = logging.getLogger("swampe_plot")
 
 
 # =============================================================================
@@ -186,7 +200,7 @@ def log_environment() -> None:
     else:
         logger.error(
             "OUT_DIR does not exist. This plot script only reads outputs; run the inference script first, "
-            "or set SWAMP_PLOT_OUT_DIR to the directory that contains config.json/observations.npz."
+            "or set MY_SWAMPE_PLOT_OUT_DIR to the directory that contains config.json/observations.npz."
         )
 
 
@@ -342,7 +356,7 @@ if cfg_out_dir is not None:
             logger.warning(
                 "config.json out_dir does not match OUT_DIR used by plot_smc.py. "
                 f"config out_dir={cfg_out}, plot OUT_DIR={out_res}. "
-                "If you changed cfg.out_dir in run_smc.py, set SWAMP_PLOT_OUT_DIR accordingly."
+                "If you changed cfg.out_dir in run_smc.py, set MY_SWAMPE_PLOT_OUT_DIR accordingly."
             )
         else:
             logger.info("config.json out_dir matches plot OUT_DIR.")
@@ -489,6 +503,80 @@ def flatten_chain_draw(x: np.ndarray) -> np.ndarray:
     """(chains, draws, ...) -> (chains*draws, ...)"""
     x = np.asarray(x)
     return x.reshape((-1,) + x.shape[2:])
+
+
+# Astronomical constants for the eclipse-geometry baseline below.
+G_SI = 6.6743e-11
+MSUN_KG = 1.98892e30
+RSUN_M = 6.957e8
+RJUP_M = 7.1492e7
+DAY_S = 86400.0
+
+
+def eclipse_anchored_stellar_baseline(t: np.ndarray, f: np.ndarray) -> Optional[np.ndarray]:
+    """Stellar-flux baseline F_s(t) anchored on full-occultation (t2-t3) bottoms.
+
+    During secondary eclipse the planet is hidden, so the measured flux IS the
+    stellar flux. Fitting a linear trend through the in-eclipse points (both
+    eclipses when the data cover two) pins the planet-to-star flux zero point
+    and removes the linear ramp — the display convention of the JWST
+    phase-curve papers (e.g. Kempton et al. 2023 for GJ 1214b), where the
+    y-axis is F_p/F_s in ppm and eclipse bottoms sit at zero.
+
+    Returns F_s evaluated at every t, or None when the system geometry is not
+    in the config / the data contain no in-eclipse points (synthetic smoke
+    runs) — callers then fall back to the median-offset display.
+    """
+    try:
+        period = float(orbital_period_days)
+        t0 = float(cfg.get("time_transit_days", 0.0))
+        m_star = float(cfg["star_mass_msun"]) * MSUN_KG
+        r_star = float(cfg["star_radius_rsun"]) * RSUN_M
+        r_planet = float(cfg["planet_radius_rjup"]) * RJUP_M
+        b = float(cfg["impact_param"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    # Full-occultation half-duration from the standard transit-geometry formula
+    # (circular orbit; same geometry the data preparation used for edge masking).
+    period_s = period * DAY_S
+    a_orb = (G_SI * m_star * period_s**2 / (4.0 * math.pi**2)) ** (1.0 / 3.0)
+    a_rs = a_orb / r_star
+    k = r_planet / r_star
+    cos_i = b / a_rs
+    sin_i = math.sqrt(max(0.0, 1.0 - cos_i**2))
+    arg = (1.0 - k) ** 2 - b**2
+    if arg <= 0.0 or sin_i <= 0.0 or a_rs <= 1.0:
+        return None  # grazing geometry: no flat eclipse bottom
+    x = math.sqrt(arg) / (a_rs * sin_i)
+    if x >= 1.0:
+        return None
+    t23_half = 0.5 * (period / math.pi) * math.asin(x)
+
+    # Eclipse centers t0 + (n + 1/2) P covering the data span.
+    n_lo = int(math.floor((float(np.min(t)) - t0) / period - 0.5))
+    n_hi = int(math.ceil((float(np.max(t)) - t0) / period - 0.5))
+    groups: List[np.ndarray] = []
+    for n in range(n_lo, n_hi + 1):
+        tc = t0 + (n + 0.5) * period
+        g = np.abs(t - tc) < 0.85 * t23_half  # stay clear of ingress/egress
+        if int(g.sum()) >= 3:
+            groups.append(g)
+    if not groups:
+        return None
+
+    anchor = np.logical_or.reduce(groups)
+    n_anchor = int(anchor.sum())
+    if len(groups) >= 2 and n_anchor >= 6:
+        coeffs = np.polyfit(t[anchor], f[anchor], 1)  # linear ramp through both bottoms
+        f_star = np.polyval(coeffs, t)
+    else:
+        f_star = np.full_like(np.asarray(t, dtype=float), float(np.median(f[anchor])))
+    logger.info(
+        f"Eclipse-anchored stellar baseline: {len(groups)} eclipse(s), {n_anchor} in-eclipse points, "
+        f"t23/2={t23_half:.5f} d, {'linear' if len(groups) >= 2 and n_anchor >= 6 else 'constant'} F_s(t)."
+    )
+    return f_star
 
 
 def save_fig(fig: plt.Figure, filename: str) -> None:
@@ -714,6 +802,24 @@ else:
     prior_hi = None
     truth_vals = None
 
+# Apply the display transform (labels + unit scaling) once, up front.
+samples = np.array(samples, dtype=float, copy=True)
+for _j, _name in enumerate(param_names):
+    _disp = PARAM_DISPLAY.get(_name)
+    if _disp is None:
+        continue
+    _label, _scale = _disp
+    param_labels[_j] = _label
+    if _scale != 1.0:
+        samples[..., _j] *= _scale
+        if prior_lo is not None and _j < prior_lo.size:
+            prior_lo[_j] *= _scale
+        if prior_hi is not None and _j < prior_hi.size:
+            prior_hi[_j] *= _scale
+        if truth_vals is not None and _j < truth_vals.size:
+            truth_vals[_j] *= _scale
+        logger.info(f"display transform: {_name} scaled by {_scale:g} -> {_label}")
+
 orders_threshold = float(cfg.get("log_axis_orders_threshold", 3.0))
 logger.info(f"log_axis_orders_threshold={orders_threshold:.3g}")
 
@@ -761,21 +867,52 @@ def plot_phase_curve() -> None:
     """Plot phase curve."""
     logger.info("Plotting phase_curve.png")
     fig, ax = plt.subplots(figsize=(7.5, 4.2))
-    ax.plot(times_days, flux_obs, ".", ms=3, color=COLOR_DATA, label="observed", alpha=0.5)
+
+    # Preferred display: planet-to-star flux ratio in ppm with the stellar
+    # baseline anchored on the eclipse bottoms (F = F_s during occultation), the
+    # convention of the JWST phase-curve papers. Zero = star alone; the eclipse
+    # bottoms sit at zero and the linear ramp is divided out. Falls back to the
+    # raw relative-flux display when no eclipse is covered (synthetic smoke runs).
+    f_star = eclipse_anchored_stellar_baseline(times_days, flux_obs)
+    if f_star is not None:
+        def to_display(f: np.ndarray) -> np.ndarray:
+            return (f / f_star - 1.0) * 1.0e6
+
+        ax.set_ylabel(r"Planet-to-star flux, $F_p/F_s$ [ppm]")
+        ax.axhline(0.0, lw=0.8, color="0.75", zorder=0)
+    elif has_flux_true:
+        def to_display(f: np.ndarray) -> np.ndarray:
+            return f
+
+        ax.set_ylabel("Relative system flux")
+    else:
+        _offset = float(np.nanmedian(flux_obs))
+
+        def to_display(f: np.ndarray) -> np.ndarray:
+            return (f - _offset) * 1.0e6
+
+        ax.set_ylabel("Relative system flux $-$ median [ppm]")
+
+    ax.plot(times_days, to_display(flux_obs), ".", ms=3, color=COLOR_DATA, label="observed", alpha=0.5)
     if has_flux_true:
-        ax.plot(times_days, flux_true, "-", lw=2, color=COLOR_TRUTH, label="truth (noise-free)")
+        ax.plot(times_days, to_display(flux_true), "-", lw=2, color=COLOR_TRUTH, label="truth (noise-free)")
 
     if ppc_q is not None:
-        ax.plot(times_days, ppc_q["p50"], "-", lw=2, color=COLOR_POSTERIOR, label="posterior median")
-        ax.fill_between(times_days, ppc_q["p05"], ppc_q["p95"], alpha=0.3, color=COLOR_BAND, label="90% PPC band")
+        ax.plot(times_days, to_display(ppc_q["p50"]), "-", lw=2, color=COLOR_POSTERIOR,
+                label="posterior median")
+        ax.fill_between(times_days, to_display(ppc_q["p05"]), to_display(ppc_q["p95"]),
+                        alpha=0.35, color=COLOR_BAND, label="90% PPC band")
 
     # Mark transit and secondary eclipse (approx)
     t0 = float(cfg.get("time_transit_days", 0.0))
-    ax.axvline(t0, ls="--", lw=1, alpha=0.6, color="0.4")
-    ax.axvline(t0 + 0.5 * orbital_period_days, ls="--", lw=1, alpha=0.6, color="0.4")
+    for tv, tag in ((t0, "transit"), (t0 + 0.5 * orbital_period_days, "eclipse")):
+        if times_days.min() <= tv <= times_days.max():
+            ax.axvline(tv, ls="--", lw=1, alpha=0.6, color="0.4")
+            ax.annotate(tag, xy=(tv, 0.02), xycoords=("data", "axes fraction"),
+                        xytext=(4, 0), textcoords="offset points",
+                        fontsize=9, color="0.35", ha="left", va="bottom")
 
     ax.set_xlabel("Time [days]")
-    ax.set_ylabel("Planet flux (relative)")
     ax.legend(loc="best", fontsize=9)
     save_fig(fig, "phase_curve.png")
 
@@ -796,11 +933,11 @@ def plot_phase_curve_residuals() -> None:
     log_array_stats("phase_curve_residuals", resid)
 
     fig, ax = plt.subplots(figsize=(7.5, 3.8))
-    ax.errorbar(times_days, resid, yerr=obs_sigma_vec, fmt=".", ms=3, alpha=0.6, color=COLOR_DATA,
-                ecolor="0.7", elinewidth=0.8, capsize=0, label=f"obs - {model_label} (±1σ noise)")
+    ax.errorbar(times_days, resid * 1e6, yerr=obs_sigma_vec * 1e6, fmt=".", ms=3, alpha=0.6, color=COLOR_DATA,
+                ecolor="0.7", elinewidth=0.8, capsize=0, label=f"obs $-$ {model_label} ($\\pm 1\\sigma$ noise)")
     ax.axhline(0.0, lw=1, color=COLOR_TRUTH)
     ax.set_xlabel("Time [days]")
-    ax.set_ylabel("Residual (obs - model)")
+    ax.set_ylabel("Residual [ppm]")
     ax.legend(loc="best", fontsize=9)
     save_fig(fig, "phase_curve_residuals.png")
 
@@ -984,14 +1121,14 @@ def plot_corner_with_text() -> None:
         bins=corner_bins,
         range=ranges,
         axes_scale=["log" if use_log else "linear" for use_log in use_log_axis],
-        color="0.15",
+        color=COLOR_POSTERIOR,
         labels=[param_labels[j] if j < len(param_labels) else str(j) for j in range(d)],
         truths=truths,
-        truth_color="0.02",
+        truth_color=COLOR_TRUTH,
         quantiles=[0.16, 0.50, 0.84],
         show_titles=True,
         title_quantiles=[0.16, 0.50, 0.84],
-        title_fmt=".3g",
+        title_fmt=".4g",
         hist_bin_factor=CORNER_HIST_BIN_FACTOR,
         smooth=CORNER_SMOOTH,
         smooth1d=CORNER_SMOOTH,
@@ -1000,14 +1137,19 @@ def plot_corner_with_text() -> None:
         plot_density=True,
         plot_contours=True,
         fill_contours=True,
-        max_n_ticks=4,
+        max_n_ticks=3,
         use_math_text=True,
         quiet=True,
-        hist_kwargs={"color": "0.25", "alpha": 0.85},
-        contour_kwargs={"colors": "0.10", "linewidths": 1.2},
-        contourf_kwargs={"colors": ["1.0", "0.88", "0.70", "0.48", "0.28"]},
-        pcolor_kwargs={"cmap": "Greys"},
+        labelpad=0.10,
+        label_kwargs={"fontsize": 15},
+        title_kwargs={"fontsize": 11.5, "pad": 7},
+        hist_kwargs={"color": COLOR_POSTERIOR, "lw": 1.6},
+        contour_kwargs={"colors": "#08306B", "linewidths": 1.1},
+        contourf_kwargs={"colors": ["#FFFFFF", "#D3E4F3", "#9EC9E2", "#5BA3CF", "#2171B5"]},
+        pcolor_kwargs={"cmap": "Blues"},
     )
+    for ax in fig.get_axes():
+        ax.tick_params(labelsize=10)
 
     path = PLOTS_DIR / "corner_posterior.png"
     fig.savefig(path, bbox_inches="tight")
@@ -1154,54 +1296,92 @@ def plot_maps() -> None:
             edges[-1] = 0.5 * np.pi
         return edges
 
-    def _pcolormesh(ax, lon_rad: np.ndarray, lat_rad: np.ndarray, z: np.ndarray, title: str) -> None:
+    def _pcolormesh(ax, lon_rad: np.ndarray, lat_rad: np.ndarray, z: np.ndarray, title: str,
+                    *, cmap: str = "viridis", cbar_label: str = "") -> None:
         """Render a `pcolormesh` panel with consistent axes and color scaling."""
         lon_edges = _edges_1d(lon_rad, is_lat=False)
         lat_edges = _edges_1d(lat_rad, is_lat=True)
         lon_e, lat_e = np.meshgrid(lon_edges, lat_edges)
-        pcm = ax.pcolormesh(np.degrees(lon_e), np.degrees(lat_e), z, shading="auto")
+        pcm = ax.pcolormesh(np.degrees(lon_e), np.degrees(lat_e), z, shading="auto", cmap=cmap, rasterized=True)
+        ax.set_xticks(np.arange(-180.0, 181.0, 60.0))
+        ax.set_yticks(np.arange(-60.0, 61.0, 30.0))
+        # substellar point (lon=0, lat=0) for orientation
+        ax.plot(0.0, 0.0, marker="+", ms=10, mew=1.5, color="w")
         ax.set_xlabel("Longitude [deg]")
         ax.set_ylabel("Latitude [deg]")
         ax.set_title(title)
-        ax.get_figure().colorbar(pcm, ax=ax, shrink=0.85)
+        ax.get_figure().colorbar(pcm, ax=ax, shrink=0.85, label=cbar_label)
 
     def intensity_title(base: str) -> str:
-        """Compute intensity title."""
+        """Compute intensity title (mathtext; unicode ∝/λ glyphs are missing from
+        some sans fonts and render as boxes)."""
         mode = str(cfg.get("emission_model", "bolometric")).strip().lower()
         if mode == "bolometric":
-            return f"{base} (I ∝ T^4)"
+            return f"{base} ($I \\propto T^4$)"
         if mode == "planck":
             band = cfg.get("planck_band_wavelengths_m", None)
             if band:
                 try:
                     lam_lo, lam_hi = 1e6 * float(min(band)), 1e6 * float(max(band))
-                    return f"{base} (I ∝ Σ w B_λ[T], {lam_lo:.3g}-{lam_hi:.3g} µm)"
+                    return f"{base} ($I \\propto \\Sigma\\, w\\, B_\\lambda[T]$, {lam_lo:.3g}$-${lam_hi:.3g} $\\mu$m)"
                 except Exception:
-                    return f"{base} (I ∝ Σ w B_λ[T])"
+                    return f"{base} ($I \\propto \\Sigma\\, w\\, B_\\lambda[T]$)"
             lam_m = cfg.get("planck_wavelength_m", None)
             if lam_m is None:
-                return f"{base} (I ∝ B_λ[T])"
+                return f"{base} ($I \\propto B_\\lambda[T]$)"
             try:
                 lam_um = 1e6 * float(lam_m)
-                return f"{base} (I ∝ B_λ[T], λ={lam_um:.3g} µm)"
+                return f"{base} ($I \\propto B_\\lambda[T]$, $\\lambda$={lam_um:.3g} $\\mu$m)"
             except Exception:
-                return f"{base} (I ∝ B_λ[T])"
+                return f"{base} ($I \\propto B_\\lambda[T]$)"
         return f"{base} (I; emission_model={mode})"
 
     has_truth_maps = bool(np.isfinite(np.asarray(maps["phi_truth"])).any())
-    if has_truth_maps:
+    has_post_maps = bool(np.isfinite(np.asarray(maps["phi_post"])).any())
+    if not (has_truth_maps or has_post_maps):
+        logger.warning("maps arrays are entirely non-finite; skipping maps.png (re-run the maps stage of run_smc.py).")
+        return
+
+    def _nonneg(z: np.ndarray, name: str) -> np.ndarray:
+        """T and I are physically non-negative (pipeline floors T at Tmin_K > 0);
+        clip for display and warn loudly if a stale/buggy file violates that."""
+        z = np.asarray(z)
+        n_neg = int((z < 0.0).sum())
+        if n_neg:
+            logger.warning(f"maps.{name}: {n_neg} negative pixels (min={np.nanmin(z):.4g}); "
+                           "clipping at 0 for display — the pipeline should never produce these.")
+            z = np.clip(z, 0.0, None)
+        return z
+
+    phi_label = r"$\Phi$ [m$^2$ s$^{-2}$]"
+    if has_truth_maps and has_post_maps:
         fig, axs = plt.subplots(2, 3, figsize=(14, 7), constrained_layout=True)
-        _pcolormesh(axs[0, 0], lon, lat, np.asarray(maps["phi_truth"]), "Phi truth")
-        _pcolormesh(axs[0, 1], lon, lat, np.asarray(maps["T_truth"]), "T truth [K]")
-        _pcolormesh(axs[0, 2], lon, lat, np.asarray(maps["I_truth"]), intensity_title("I truth"))
+        _pcolormesh(axs[0, 0], lon, lat, np.asarray(maps["phi_truth"]), r"$\Phi$ truth",
+                    cmap="viridis", cbar_label=phi_label)
+        _pcolormesh(axs[0, 1], lon, lat, _nonneg(maps["T_truth"], "T_truth"), "T truth",
+                    cmap="inferno", cbar_label="T [K]")
+        _pcolormesh(axs[0, 2], lon, lat, _nonneg(maps["I_truth"], "I_truth"), intensity_title("I truth"),
+                    cmap="magma", cbar_label="I [arb.]")
         post_axs = axs[1]
     else:
-        # Real-data run: no injected truth maps, show the posterior row only.
-        fig, post_axs = plt.subplots(1, 3, figsize=(14, 3.7), constrained_layout=True)
-    _pcolormesh(post_axs[0], lon, lat, np.asarray(maps["phi_post"]), "Phi posterior median")
-    _pcolormesh(post_axs[1], lon, lat, np.asarray(maps["T_post"]), "T posterior median [K]")
-    _pcolormesh(post_axs[2], lon, lat, np.asarray(maps["I_post"]), intensity_title("I posterior median"))
-    fig.suptitle("Terminal SWAMP maps and intensity proxy")
+        # Real-data run (or missing posterior): a single row of whichever maps exist.
+        fig, post_axs = plt.subplots(1, 3, figsize=(14, 3.9), constrained_layout=True)
+        if not has_post_maps:
+            _pcolormesh(post_axs[0], lon, lat, np.asarray(maps["phi_truth"]), r"$\Phi$ truth",
+                        cmap="viridis", cbar_label=phi_label)
+            _pcolormesh(post_axs[1], lon, lat, _nonneg(maps["T_truth"], "T_truth"), "T truth",
+                        cmap="inferno", cbar_label="T [K]")
+            _pcolormesh(post_axs[2], lon, lat, _nonneg(maps["I_truth"], "I_truth"), intensity_title("I truth"),
+                        cmap="magma", cbar_label="I [arb.]")
+            post_axs = None
+    if post_axs is not None:
+        _pcolormesh(post_axs[0], lon, lat, np.asarray(maps["phi_post"]), r"$\Phi$ posterior median",
+                    cmap="viridis", cbar_label=phi_label)
+        _pcolormesh(post_axs[1], lon, lat, _nonneg(maps["T_post"], "T_post"), "T posterior median",
+                    cmap="inferno", cbar_label="T [K]")
+        _pcolormesh(post_axs[2], lon, lat, _nonneg(maps["I_post"], "I_post"), intensity_title("I posterior median"),
+                    cmap="magma", cbar_label="I [arb.]")
+    fig.suptitle("Terminal MY_SWAMPE maps and band intensity ($+$ marks the substellar point)")
     path = PLOTS_DIR / "maps.png"
     fig.savefig(path)
     plt.close(fig)
@@ -1287,8 +1467,11 @@ def plot_disk_renders() -> None:
             # prograde planet, so an eastward hot spot faces us before eclipse.
             theta = phase0 - 2.0 * math.pi * (t - time_transit) / orbital_period_days
             img = safe_render(surface, theta, render_res)
-            ax.imshow(img, origin="lower")
-            ax.set_title(f"{label}\nphase={ph:.2f}")
+            # The Ylm-projected intensity can undershoot (Gibbs ringing); brightness
+            # is physically non-negative, so clip for display.
+            img = np.clip(img, 0.0, None)
+            ax.imshow(img, origin="lower", cmap="inferno")
+            ax.set_title(f"{label}\nphase = {ph:.2f}")
             ax.axis("off")
         path = PLOTS_DIR / filename
         fig.savefig(path)
@@ -1300,7 +1483,12 @@ def plot_disk_renders() -> None:
         render_grid(y_truth, "Truth", "disk_renders_truth.png")
     else:
         logger.info("y_truth is NaN (real-data run); skipping truth disk renders.")
-    render_grid(np.asarray(maps["y_post"]), "Posterior median", "disk_renders_posterior.png")
+    y_post = np.asarray(maps["y_post"])
+    if np.isfinite(y_post).all():
+        render_grid(y_post, "Posterior median", "disk_renders_posterior.png")
+    else:
+        logger.warning("y_post contains non-finite values; skipping posterior disk renders "
+                       "(re-run the maps stage of run_smc.py).")
 
 
 # =============================================================================

@@ -3,7 +3,7 @@
 Covers: the per-stage-adaptive preconditioned MALA mutation kernel (statistical
 correctness on an anisotropic Gaussian + end-to-end SMC with adaptation), the
 weighted-scale preconditioner helper, the new Config validation rules, and the
-semi-implicit / RAW flag pass-through into my_swamp RunFlags.
+semi-implicit / RAW flag pass-through into my_swampe RunFlags.
 """
 
 from __future__ import annotations
@@ -221,7 +221,7 @@ def test_run_smc_loop_fixed_step_path_unchanged():
 
 
 # ---------------------------------------------------------------------------
-# Semi-implicit / RAW wiring into my_swamp RunFlags
+# Semi-implicit / RAW wiring into my_swampe RunFlags
 # ---------------------------------------------------------------------------
 
 

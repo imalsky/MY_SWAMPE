@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # ruff: noqa: E741
-"""my_swamp.modEuler_tdiff
+"""my_swampe.modEuler_tdiff
 
 Modified-Euler time differencing following Hack and Jakob (1992).
 

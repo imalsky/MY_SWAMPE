@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # ruff: noqa: E741
-"""my_swamp.semi_implicit_tdiff
+"""my_swampe.semi_implicit_tdiff
 
 Semi-implicit leapfrog time differencing (Hoskins & Simmons 1975) for the
 spectral shallow-water equations, paired with exponential (integrating-factor)
@@ -133,7 +133,7 @@ def si_timestep(
     only when the physical Perez-Becker & Showman forcing is active
     (``forcflag`` and ``test is None``); it moves the linear relaxation/drag
     terms into the implicit solve. Returns the same 13-tuple as
-    :func:`my_swamp.time_stepping.tstepping`.
+    :func:`my_swampe.time_stepping.tstepping`.
     """
 
     dtype_r = jnp.zeros(0, dtype=Em.dtype).real.dtype

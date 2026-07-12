@@ -1,5 +1,5 @@
 {
-  "comparison": "SWAMPE vs MY_SWAMP long-run field comparison",
+  "comparison": "SWAMPE vs MY_SWAMPE long-run field comparison",
   "days_actual": 100.0,
   "days_requested": 100.0,
   "dt_seconds": 120.0,
@@ -78,7 +78,7 @@
   },
   "plot_png": "testing/long_run_parity_outputs/forced_default_100d/field_comparison.png",
   "runtime_seconds": {
-    "my_swamp": 240.70671845899778,
+    "my_swampe": 240.70671845899778,
     "swampe": 8654.585567874994
   },
   "tmax": 72001

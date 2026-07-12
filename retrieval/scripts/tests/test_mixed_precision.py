@@ -3,7 +3,7 @@
 The JAX x64 flag is process-global and the main suite runs float32, so these
 tests only run under an x64 invocation:
 
-    SWAMPE_JAX_ENABLE_X64=1 JAX_ENABLE_X64=1 conda run -n MY_SWAMP \
+    MY_SWAMPE_ENABLE_X64=1 JAX_ENABLE_X64=1 conda run -n MY_SWAMPE \
         python -m pytest retrieval/scripts/tests/test_mixed_precision.py -q
 
 Contract: ``mixed_precision=False`` (default) is bit-identical pure float64;
@@ -22,7 +22,7 @@ import pipeline as P
 
 pytestmark = pytest.mark.skipif(
     not bool(jax.config.jax_enable_x64),
-    reason="mixed-precision tests need process-global x64 (SWAMPE_JAX_ENABLE_X64=1)",
+    reason="mixed-precision tests need process-global x64 (MY_SWAMPE_ENABLE_X64=1)",
 )
 
 

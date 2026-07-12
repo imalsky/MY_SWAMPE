@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""run_smc.py — thin driver for the differentiable SWAMP -> phase-curve retrieval.
+"""run_smc.py — thin driver for the differentiable MY_SWAMPE -> phase-curve retrieval.
 
 All the science (forward model, starry projector, u-space transform, likelihood,
 and the BlackJAX adaptive-tempered-SMC machinery) lives in ``pipeline.py``. This
@@ -10,23 +10,23 @@ monolithic script.
 
 Presets / overrides (env vars, read before JAX import)
 ------------------------------------------------------
-- ``SWAMP_RETRIEVAL_PRESET``  : ``fast`` (default; ~2-day CPU smoke, float32),
+- ``MY_SWAMPE_RETRIEVAL_PRESET``  : ``fast`` (default; ~2-day CPU smoke, float32),
                                 ``gpu`` (large SMC swarm for accelerators), or
                                 ``prod`` (50-day, float64, big SMC).
-- ``SWAMP_RETRIEVAL_USE_X64`` : ``0``/``1`` to force precision (overrides preset).
-- ``SWAMP_RETRIEVAL_OVERRIDES``: JSON object of Config field overrides, e.g.
+- ``MY_SWAMPE_RETRIEVAL_USE_X64`` : ``0``/``1`` to force precision (overrides preset).
+- ``MY_SWAMPE_RETRIEVAL_OVERRIDES``: JSON object of Config field overrides, e.g.
                                  ``'{"model_days": 3.0, "obs_sigma": 5e-5}'``.
-- ``SWAMP_RETRIEVAL_OVERRIDES_FILE``: JSON file of Config field overrides.
-- ``SWAMP_PLOT_OUT_DIR`` / ``cfg.out_dir`` : where outputs are written.
+- ``MY_SWAMPE_RETRIEVAL_OVERRIDES_FILE``: JSON file of Config field overrides.
+- ``MY_SWAMPE_PLOT_OUT_DIR`` / ``cfg.out_dir`` : where outputs are written.
 
 Examples
 --------
     # fast local CPU smoke (default):
-    SWAMP_RETRIEVAL_PRESET=fast python run_smc.py
+    MY_SWAMPE_RETRIEVAL_PRESET=fast python run_smc.py
     # production float64:
-    SWAMP_RETRIEVAL_PRESET=prod python run_smc.py
+    MY_SWAMPE_RETRIEVAL_PRESET=prod python run_smc.py
     # custom:
-    SWAMP_RETRIEVAL_OVERRIDES='{"model_days":3.0,"smc_num_particles":48}' python run_smc.py
+    MY_SWAMPE_RETRIEVAL_OVERRIDES='{"model_days":3.0,"smc_num_particles":48}' python run_smc.py
 """
 
 from __future__ import annotations
@@ -42,14 +42,14 @@ from typing import Any, Dict
 import numpy as np
 
 # ---- precision must be decided BEFORE importing pipeline (which imports JAX) ----
-_PRESET = os.environ.get("SWAMP_RETRIEVAL_PRESET", "fast").strip().lower()
-_x64_env = os.environ.get("SWAMP_RETRIEVAL_USE_X64", "").strip()
+_PRESET = os.environ.get("MY_SWAMPE_RETRIEVAL_PRESET", "fast").strip().lower()
+_x64_env = os.environ.get("MY_SWAMPE_RETRIEVAL_USE_X64", "").strip()
 if _x64_env != "":
     _USE_X64 = _x64_env not in ("0", "false", "no")
 else:
     # gpu + prod default to float64 (matches gpu_config()/prod); fast defaults to float32.
     _USE_X64 = _PRESET in ("prod", "gpu")
-os.environ["SWAMPE_JAX_ENABLE_X64"] = "1" if _USE_X64 else "0"
+os.environ["MY_SWAMPE_ENABLE_X64"] = "1" if _USE_X64 else "0"
 os.environ.setdefault("JAX_ENABLE_X64", "1" if _USE_X64 else "0")
 os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 
@@ -65,16 +65,16 @@ def make_config() -> P.Config:
     elif _PRESET == "prod":
         cfg = P.Config(use_x64=_USE_X64)  # 50-day production defaults
     else:
-        raise ValueError(f"Unknown SWAMP_RETRIEVAL_PRESET={_PRESET!r} (use 'fast', 'gpu', or 'prod').")
+        raise ValueError(f"Unknown MY_SWAMPE_RETRIEVAL_PRESET={_PRESET!r} (use 'fast', 'gpu', or 'prod').")
 
     # Default outputs land in retrieval/data/ (overridable below).
     cfg = replace(cfg, out_dir=P.DATA_DIR)
 
     overrides: Dict[str, Any] = {}
-    ov_file = os.environ.get("SWAMP_RETRIEVAL_OVERRIDES_FILE", "").strip()
+    ov_file = os.environ.get("MY_SWAMPE_RETRIEVAL_OVERRIDES_FILE", "").strip()
     if ov_file:
         overrides.update(json.loads(Path(ov_file).read_text()))
-    ov = os.environ.get("SWAMP_RETRIEVAL_OVERRIDES", "").strip()
+    ov = os.environ.get("MY_SWAMPE_RETRIEVAL_OVERRIDES", "").strip()
     if ov:
         overrides.update(json.loads(ov))
     # keys starting with "_" are comments (e.g. "_comment_provenance"), not Config fields
@@ -149,7 +149,7 @@ def main() -> None:
                                                                mode="w" if cfg.overwrite else "a")],
         force=True,
     )
-    logger = logging.getLogger("swamp_retrieval")
+    logger = logging.getLogger("swampe_retrieval")
 
     import jax  # noqa: E402  (already configured via pipeline import)
     logger.info(f"preset={_PRESET} use_x64={_USE_X64} backend={jax.default_backend()} devices={jax.devices()}")
@@ -281,12 +281,28 @@ def main() -> None:
                    p95=np.nanquantile(ppc, 0.95, axis=0), times_days=pipe.times_days)
         logger.info("Saved posterior-predictive files.")
 
-    # ---- truth + posterior-median maps (so plotting never reruns SWAMP) ----
+    # ---- truth + posterior-median maps (so plotting never reruns MY_SWAMPE) ----
     logger.info("Computing truth + posterior-median terminal maps...")
     import jax.numpy as jnp
     s = np.load(samples_path)
-    theta_median = np.median(np.asarray(s["samples"]).reshape(-1, pipe.n_dim), axis=0).astype(pipe.npdtype)
+    theta_flat = np.asarray(s["samples"]).reshape(-1, pipe.n_dim)
+    theta_median = np.median(theta_flat, axis=0).astype(pipe.npdtype)
     post_maps = pipe.compute_maps_for_theta(jnp.asarray(theta_median, pipe.dtype))
+
+    def _maps_finite(m):
+        return all(np.isfinite(np.asarray(v)).all() for v in m.values())
+
+    if not _maps_finite(post_maps):
+        # The component-wise median of a multimodal/correlated posterior is not
+        # itself a sample; fall back to the actual draw closest to it.
+        sd = theta_flat.std(axis=0)
+        sd[sd == 0.0] = 1.0
+        idx = int(np.argmin((((theta_flat - theta_median) / sd) ** 2).sum(axis=1)))
+        logger.warning("Posterior-median maps are non-finite; retrying at the nearest actual draw (row %d).", idx)
+        theta_median = theta_flat[idx].astype(pipe.npdtype)
+        post_maps = pipe.compute_maps_for_theta(jnp.asarray(theta_median, pipe.dtype))
+        if not _maps_finite(post_maps):
+            logger.warning("Posterior maps are STILL non-finite; maps.png/disk renders will be blank.")
     if cfg.generate_synthetic_data:
         truth_maps = pipe.compute_maps_for_theta(pipe.theta_truth)
     else:

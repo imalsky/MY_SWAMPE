@@ -9,7 +9,7 @@ import pytest
 def test_spectral_params_shapes() -> None:
     """Verify the shapes of the precomputed static spectral arrays."""
     import jax  # noqa: F401  # pylint: disable=unused-import
-    from my_swamp import initial_conditions as ic
+    from my_swampe import initial_conditions as ic
 
     N, I, J, dt, lambdas, mus, w = ic.spectral_params(42)
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic benchmark harness for my_swamp scan execution."""
+"""Deterministic benchmark harness for my_swampe scan execution."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ import jax
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from my_swamp.backend_preflight import backend_info_lines, preflight_backend  # noqa: E402
-from my_swamp.model import run_model_scan_final  # noqa: E402
+from my_swampe.backend_preflight import backend_info_lines, preflight_backend  # noqa: E402
+from my_swampe.model import run_model_scan_final  # noqa: E402
 
 
 def _bool_arg(x: str) -> bool:

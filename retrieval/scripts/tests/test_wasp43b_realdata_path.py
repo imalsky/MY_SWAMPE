@@ -160,7 +160,7 @@ _X64_CHECK = textwrap.dedent(
 def test_pilot_realdata_path_x64_subprocess():
     """Run the pilot wiring checks in float64 (the precision the PBS job uses)."""
     env = dict(os.environ)
-    env.update(SWAMPE_JAX_ENABLE_X64="1", JAX_ENABLE_X64="1", JAX_PLATFORMS="cpu")
+    env.update(MY_SWAMPE_ENABLE_X64="1", JAX_ENABLE_X64="1", JAX_PLATFORMS="cpu")
     res = subprocess.run(
         [sys.executable, "-c", _X64_CHECK, str(SCRIPTS_DIR), str(SUITE)],
         env=env, capture_output=True, text=True, timeout=1800,

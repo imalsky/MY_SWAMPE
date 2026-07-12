@@ -16,18 +16,18 @@ os.environ.setdefault("JAX_PLATFORM_NAME", "cpu")
 # opts out.
 #
 # Users may select precision by exporting either variable before running pytest:
-#   - SWAMPE_JAX_ENABLE_X64=0/1 (package-specific convenience)
+#   - MY_SWAMPE_ENABLE_X64=0/1 (package-specific convenience)
 #   - JAX_ENABLE_X64=0/1        (canonical JAX environment variable)
 #
 # We mirror the chosen value into the other variable so that:
 #   (a) JAX reads the desired mode at import time
-#   (b) my_swamp's import-time config logic does not override the user's choice
-if "SWAMPE_JAX_ENABLE_X64" in os.environ and "JAX_ENABLE_X64" not in os.environ:
-    os.environ["JAX_ENABLE_X64"] = os.environ["SWAMPE_JAX_ENABLE_X64"]
-elif "JAX_ENABLE_X64" in os.environ and "SWAMPE_JAX_ENABLE_X64" not in os.environ:
-    os.environ["SWAMPE_JAX_ENABLE_X64"] = os.environ["JAX_ENABLE_X64"]
+#   (b) my_swampe's import-time config logic does not override the user's choice
+if "MY_SWAMPE_ENABLE_X64" in os.environ and "JAX_ENABLE_X64" not in os.environ:
+    os.environ["JAX_ENABLE_X64"] = os.environ["MY_SWAMPE_ENABLE_X64"]
+elif "JAX_ENABLE_X64" in os.environ and "MY_SWAMPE_ENABLE_X64" not in os.environ:
+    os.environ["MY_SWAMPE_ENABLE_X64"] = os.environ["JAX_ENABLE_X64"]
 else:
-    os.environ.setdefault("SWAMPE_JAX_ENABLE_X64", "1")
+    os.environ.setdefault("MY_SWAMPE_ENABLE_X64", "1")
     os.environ.setdefault("JAX_ENABLE_X64", "1")
 
 
@@ -38,11 +38,11 @@ os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
-from my_swamp.backend_preflight import backend_info_lines, preflight_backend
+from my_swampe.backend_preflight import backend_info_lines, preflight_backend
 
 
-_TEST_BACKEND = os.environ.get("SWAMPE_TEST_BACKEND", "cpu")
-_REQUIRE_GPU = os.environ.get("SWAMPE_TEST_REQUIRE_GPU", "0").strip().lower() in {"1", "true", "yes", "on"}
+_TEST_BACKEND = os.environ.get("MY_SWAMPE_TEST_BACKEND", "cpu")
+_REQUIRE_GPU = os.environ.get("MY_SWAMPE_TEST_REQUIRE_GPU", "0").strip().lower() in {"1", "true", "yes", "on"}
 _BACKEND_INFO = preflight_backend(_TEST_BACKEND, require_gpu=_REQUIRE_GPU)
 
 
@@ -52,5 +52,5 @@ def pytest_report_header(config):
 
 
 def pytest_configure(config):
-    """Register custom pytest markers for the MY_SWAMP test suite."""
+    """Register custom pytest markers for the MY_SWAMPE test suite."""
     config.addinivalue_line("markers", "parity: regression tests against trusted SWAMPE reference outputs.")

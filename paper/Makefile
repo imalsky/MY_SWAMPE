@@ -1,4 +1,4 @@
-# Build the SWAMPE-JAX paper in the Journal of Open Source Software (JOSS) format.
+# Build the MY_SWAMPE paper in the Journal of Open Source Software (JOSS) format.
 # The paper is LaTeX-only; paper.tex is the canonical source (there is no paper.md).
 paper.pdf: paper.tex paper.bib parity_comparison.png temperature_sensitivity_perhour_100d.png joss-logo.png
 	pdflatex -interaction=nonstopmode -halt-on-error paper.tex

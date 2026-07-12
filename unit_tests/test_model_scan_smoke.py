@@ -8,7 +8,7 @@ import pytest
 def test_run_model_scan_smoke() -> None:
     """Verify that `run_model` completes a minimal scan-based rollout."""
     import jax  # noqa: F401  # pylint: disable=unused-import
-    from my_swamp.model import run_model_scan
+    from my_swampe.model import run_model_scan
 
     # Minimal run: one scan step (t starts at 2 by SWAMPE convention).
     res = run_model_scan(
@@ -60,7 +60,7 @@ def test_run_model_scan_test2_smoke(semi_implicit: bool) -> None:
     reference's preallocated (J, I) array, so Vic came out (1, I) and the
     initial-state stack crashed on any test=2 run.
     """
-    from my_swamp.model import run_model_scan
+    from my_swampe.model import run_model_scan
 
     res = run_model_scan(
         M=42,

@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "my-swamp"
+name = "my-swampe"
 dynamic = ["version"]
-description = "MY_SWAMP: JAX port + reference implementation of SWAMPE"
+description = "MY_SWAMPE: JAX port + reference implementation of SWAMPE"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "BSD-3-Clause"
@@ -31,9 +31,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/imalsky/MY_SWAMP"
-Repository = "https://github.com/imalsky/MY_SWAMP"
-"Bug Tracker" = "https://github.com/imalsky/MY_SWAMP/issues"
+Homepage = "https://github.com/imalsky/MY_SWAMPE"
+Repository = "https://github.com/imalsky/MY_SWAMPE"
+"Bug Tracker" = "https://github.com/imalsky/MY_SWAMPE/issues"
 
 [project.optional-dependencies]
 dev = [
@@ -45,20 +45,20 @@ dev = [
 ]
 
 [project.scripts]
-my-swamp = "my_swamp.main_function:cli_main"
+my-swampe = "my_swampe.main_function:cli_main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
 include-package-data = false
 
 [tool.setuptools.package-data]
-my_swamp = ["py.typed"]
+my_swampe = ["py.typed"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.dynamic]
-version = { attr = "my_swamp._version.__version__" }
+version = { attr = "my_swampe._version.__version__" }
 
 [tool.pytest.ini_options]
 testpaths = ["unit_tests"]
@@ -94,4 +94,4 @@ ignore_names = [
     "spinup",
     "geopot",
 ]
-exclude = ["src/my_swamp.egg-info"]
+exclude = ["src/my_swampe.egg-info"]

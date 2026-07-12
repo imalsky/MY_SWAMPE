@@ -79,8 +79,8 @@ def test_continuation_resume_matches_explicit_ic_restart() -> None:
     if not _x64_enabled():
         pytest.skip("Continuation parity requires x64 for tight tolerance.")
 
-    from my_swamp.continuation import compute_timestamp, save_data
-    from my_swamp.model import run_model_scan, run_model_scan_final
+    from my_swampe.continuation import compute_timestamp, save_data
+    from my_swampe.model import run_model_scan, run_model_scan_final
 
     with tempfile.TemporaryDirectory(prefix="swampe_cont_roundtrip_", dir="/tmp") as tmp:
         tmp_path = str(Path(tmp).resolve()) + "/"

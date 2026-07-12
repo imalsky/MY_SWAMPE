@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GPU batched-throughput sweep for my_swamp via jax.vmap.
+"""GPU batched-throughput sweep for my_swampe via jax.vmap.
 
 CLI port of paper/scripts/swampe_gpu_vmap_test.ipynb -- same regime, same
 knobs, same doubling/plateau-detection algorithm, same RESULTS block, so
@@ -95,7 +95,7 @@ def main() -> None:
     args = parser.parse_args()
 
     use_x64 = args.precision == "float64"
-    os.environ["SWAMPE_JAX_ENABLE_X64"] = "1" if use_x64 else "0"
+    os.environ["MY_SWAMPE_ENABLE_X64"] = "1" if use_x64 else "0"
     os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 
     import jax
@@ -105,12 +105,12 @@ def main() -> None:
     jax.config.update("jax_enable_x64", use_x64)
 
     try:
-        from my_swamp.model import run_model_scan_final as _my_final
+        from my_swampe.model import run_model_scan_final as _my_final
 
         def my_run(**kw):
             return _my_final(**kw)
     except Exception:
-        from my_swamp.model import run_model_scan as _my_scan
+        from my_swampe.model import run_model_scan as _my_scan
 
         def my_run(**kw):
             return _my_scan(return_history=False, **kw)

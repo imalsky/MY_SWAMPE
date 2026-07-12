@@ -1,4 +1,4 @@
-# SWAMPE-JAX JOSS paper
+# MY_SWAMPE JOSS paper
 
 The paper is maintained as **LaTeX** (`paper.tex` + `paper.bib`). This `.tex`
 source is the canonical, authoritative version of the paper — there is no
@@ -18,7 +18,7 @@ Requires a LaTeX install with `pdflatex` + `bibtex` (uses `natbib` + `plainnat`)
 
 Everything needed to regenerate the paper's figures and quantitative claims lives
 under `paper/` -- nothing outside this directory is needed except the installed
-`my_swamp` package and (for the parity/speed scripts) the sibling reference repo
+`my_swampe` package and (for the parity/speed scripts) the sibling reference repo
 `../../SWAMPE`.
 
 The figure **scripts** are committed (`paper/scripts/`) and the figure **PNGs are
@@ -29,7 +29,7 @@ required for the build and is not regenerable.
 
 | Figure | Script | Command |
 |---|---|---|
-| Fig. 1 — SWAMPE vs SWAMPE-JAX parity (`parity_comparison.png`) | `scripts/compare_long_run_parity.py` | `make figures` (or see below) |
+| Fig. 1 — SWAMPE vs MY_SWAMPE parity (`parity_comparison.png`) | `scripts/compare_long_run_parity.py` | `make figures` (or see below) |
 | Fig. 2 — AD sensitivity maps (`temperature_sensitivity_perhour_100d.png`) | `scripts/make_sensitivity_figure.py` | `python scripts/make_sensitivity_figure.py` |
 
 Regenerate both before building (slow: Fig. 1 runs the reference NumPy SWAMPE and

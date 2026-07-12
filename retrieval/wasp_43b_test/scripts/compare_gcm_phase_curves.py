@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare the prepared WASP-43b observations and the SWAMP forward model
+"""Compare the prepared WASP-43b observations and the MY_SWAMPE forward model
 against the GCM phase-curve predictions archived with Bell et al. 2024
 (Zenodo 10.5281/zenodo.10525170, 3_Models/GCMs/gcm_phase_curves.nc; 31
 white-light 5-10.5 um curves from 5 GCM groups, in ppm vs orbital phase).
@@ -10,11 +10,11 @@ outputs/gcm_comparison.png   overlay figure
 stdout                       per-curve peak lead / amplitude / day / night table
 
 The observed planet flux is estimated as (binned relative flux) - (in-eclipse
-level), which removes the star + baseline to first order. SWAMP curves are the
+level), which removes the star + baseline to first order. MY_SWAMPE curves are the
 pipeline forward model at a few (tau_rad, tau_drag) values with the pilot
 config's fpfs placeholder; they illustrate the model family, not a fit.
 
-Run inside the MY_SWAMP conda env (needs jax + jaxoplanet for the model
+Run inside the MY_SWAMPE conda env (needs jax + jaxoplanet for the model
 overlay; pass --no-model to skip it and only use numpy/h5py).
 """
 
@@ -98,13 +98,13 @@ def observed_planet_ppm():
     return phase_deg, (f - level) * 1.0e6, int(in_ecl.sum())
 
 
-def swamp_model_curves(tau_pairs):
+def swampe_model_curves(tau_pairs):
     """Pipeline forward curves (planet flux, ppm) at the pilot config, for a
     few (tau_rad_h, tau_drag_h) values. Imports jax lazily."""
-    os.environ.setdefault("SWAMP_RETRIEVAL_PRESET", "gpu")
-    os.environ.setdefault("SWAMP_RETRIEVAL_USE_X64", "1")
+    os.environ.setdefault("MY_SWAMPE_RETRIEVAL_PRESET", "gpu")
+    os.environ.setdefault("MY_SWAMPE_RETRIEVAL_USE_X64", "1")
     os.environ.setdefault(
-        "SWAMP_RETRIEVAL_OVERRIDES_FILE", str(SUITE_ROOT / "config" / "wasp43b_pilot_gpu.json")
+        "MY_SWAMPE_RETRIEVAL_OVERRIDES_FILE", str(SUITE_ROOT / "config" / "wasp43b_pilot_gpu.json")
     )
     scripts_dir = SUITE_ROOT.parent / "scripts"
     if str(scripts_dir) not in sys.path:
@@ -126,7 +126,7 @@ def swamp_model_curves(tau_pairs):
         flux = np.asarray(pipe.phase_curve_model_jit(jnp.asarray(theta, pipe.dtype)))
         out.append((tr, td, phase_deg, flux * 1.0e6))
         s = curve_stats(phase_deg, flux * 1.0e6)
-        print(f"  SWAMP tau_rad={tr:5.1f}h tau_drag={td:5.1f}h: "
+        print(f"  MY_SWAMPE tau_rad={tr:5.1f}h tau_drag={td:5.1f}h: "
               f"peak lead {s['peak_lead_deg']:+6.1f} deg, day {s['day_ppm']:6.0f} ppm "
               f"(fpfs placeholder {float(cfg.planet_fpfs):.4f}, scale is fitted in the retrieval)",
               flush=True)
@@ -135,7 +135,7 @@ def swamp_model_curves(tau_pairs):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--no-model", action="store_true", help="skip the SWAMP forward overlay")
+    parser.add_argument("--no-model", action="store_true", help="skip the MY_SWAMPE forward overlay")
     args = parser.parse_args()
 
     labels, gphase, gfp = load_gcm_curves()
@@ -152,8 +152,8 @@ def main() -> None:
 
     model_curves = []
     if not args.no_model:
-        print("[running SWAMP forward overlays]")
-        model_curves = swamp_model_curves([(3.0, 3.0), (10.0, 6.0), (30.0, 30.0)])
+        print("[running MY_SWAMPE forward overlays]")
+        model_curves = swampe_model_curves([(3.0, 3.0), (10.0, 6.0), (30.0, 30.0)])
 
     import matplotlib
     matplotlib.use("Agg")
@@ -175,12 +175,12 @@ def main() -> None:
     for tr, td, ph, fp in model_curves:
         order = np.argsort(ph)
         ax.plot(ph[order], fp[order], lw=2.0, ls="--",
-                label=f"SWAMP tau_rad={tr:g}h tau_drag={td:g}h")
+                label=f"MY_SWAMPE tau_rad={tr:g}h tau_drag={td:g}h")
     ax.axvline(ECLIPSE_PHASE_DEG, color="0.6", ls=":", lw=1)
     ax.text(ECLIPSE_PHASE_DEG, ax.get_ylim()[1], " eclipse", va="top", fontsize=8, color="0.4")
     ax.set_xlabel("orbital phase [deg, transit = 0]")
     ax.set_ylabel("planet flux [ppm]")
-    ax.set_title("WASP-43b 5-10.5 um: data vs Bell et al. 2024 GCMs vs SWAMP forward model")
+    ax.set_title("WASP-43b 5-10.5 um: data vs Bell et al. 2024 GCMs vs MY_SWAMPE forward model")
     ax.legend(fontsize=6.5, ncol=2, loc="upper left")
     OUT_PNG.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(OUT_PNG, dpi=170, bbox_inches="tight")

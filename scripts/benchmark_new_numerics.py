@@ -17,7 +17,7 @@ Stages (run one at a time; each prints a compact report):
              semi-implicit leapfrog, where the time filter actually acts.
 
 Usage:
-  JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 python scripts/benchmark_new_numerics.py --stage stability
+  JAX_PLATFORMS=cpu MY_SWAMPE_ENABLE_X64=1 python scripts/benchmark_new_numerics.py --stage stability
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from my_swamp.model import run_model_scan_final, assert_finite_state
+from my_swampe.model import run_model_scan_final, assert_finite_state
 
 # WASP-43b-like regime (retrieval/wasp_43b_test/config/wasp43b_pilot_gpu.json):
 # gravity waves sqrt(Phibar)~2000 m/s; production explicit solver runs dt=120 s

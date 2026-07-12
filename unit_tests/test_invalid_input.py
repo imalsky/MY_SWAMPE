@@ -36,7 +36,7 @@ _BASE_KWARGS = dict(
 
 def test_tmax_too_small() -> None:
     """tmax < 2 must raise ValueError (SWAMPE uses a 2-level initialization)."""
-    from my_swamp.model import run_model_scan
+    from my_swampe.model import run_model_scan
 
     with pytest.raises(ValueError, match=r"tmax"):
         run_model_scan(**_BASE_KWARGS, tmax=1)
@@ -44,7 +44,7 @@ def test_tmax_too_small() -> None:
 
 def test_dt_non_positive() -> None:
     """dt <= 0 with a concrete Python scalar must raise ValueError."""
-    from my_swamp.model import run_model_scan
+    from my_swampe.model import run_model_scan
 
     kwargs = dict(_BASE_KWARGS)
     kwargs["dt"] = 0.0
@@ -54,7 +54,7 @@ def test_dt_non_positive() -> None:
 
 def test_starttime_after_tmax() -> None:
     """starttime > tmax must raise ValueError."""
-    from my_swamp.model import run_model_scan
+    from my_swampe.model import run_model_scan
 
     with pytest.raises(ValueError, match=r"starttime"):
         run_model_scan(**_BASE_KWARGS, tmax=4, starttime=10)
@@ -62,7 +62,7 @@ def test_starttime_after_tmax() -> None:
 
 def test_unsupported_test_selector_raises_via_main() -> None:
     """`main_function.main(test=99)` must raise NotImplementedError."""
-    from my_swamp.main_function import main
+    from my_swampe.main_function import main
 
     with pytest.raises(NotImplementedError, match=r"test=99"):
         main(
@@ -81,7 +81,7 @@ def test_unsupported_test_selector_raises_via_main() -> None:
 
 def test_unsupported_M_raises() -> None:
     """`spectral_params(M=50)` must raise ValueError (only 42, 63, 106 supported)."""
-    from my_swamp.initial_conditions import spectral_params
+    from my_swampe.initial_conditions import spectral_params
 
     with pytest.raises(ValueError, match=r"M"):
         spectral_params(50)
@@ -89,8 +89,8 @@ def test_unsupported_M_raises() -> None:
 
 def test_partial_initial_conditions_eta_only_raises() -> None:
     """Providing only eta0_init (without delta0/Phi0) must raise ValueError."""
-    from my_swamp.initial_conditions import spectral_params
-    from my_swamp.model import run_model_scan
+    from my_swampe.initial_conditions import spectral_params
+    from my_swampe.model import run_model_scan
 
     M = 42
     _N, I, J, _dt, _lambdas, _mus, _w = spectral_params(M)
@@ -102,8 +102,8 @@ def test_partial_initial_conditions_eta_only_raises() -> None:
 
 def test_partial_velocity_initial_conditions_raises() -> None:
     """Providing U0_init without V0_init (or vice versa) must raise ValueError."""
-    from my_swamp.initial_conditions import spectral_params
-    from my_swamp.model import run_model_scan
+    from my_swampe.initial_conditions import spectral_params
+    from my_swampe.model import run_model_scan
 
     M = 42
     _N, I, J, _dt, _lambdas, _mus, _w = spectral_params(M)
@@ -125,8 +125,8 @@ def test_partial_velocity_initial_conditions_raises() -> None:
 
 def test_wrong_shape_initial_condition_raises() -> None:
     """An initial-condition field with the wrong shape must raise ValueError."""
-    from my_swamp.initial_conditions import spectral_params
-    from my_swamp.model import run_model_scan
+    from my_swampe.initial_conditions import spectral_params
+    from my_swampe.model import run_model_scan
 
     M = 42
     _N, I, J, _dt, _lambdas, _mus, _w = spectral_params(M)
@@ -146,7 +146,7 @@ def test_wrong_shape_initial_condition_raises() -> None:
 
 def test_contflag_without_contTime_raises() -> None:
     """contflag=True without contTime must raise ValueError."""
-    from my_swamp.model import run_model_scan
+    from my_swampe.model import run_model_scan
 
     with pytest.raises(ValueError, match=r"contTime"):
         run_model_scan(**_BASE_KWARGS, tmax=4, contflag=True)
@@ -154,7 +154,7 @@ def test_contflag_without_contTime_raises() -> None:
 
 def test_contTime_non_numeric_raises() -> None:
     """contflag=True with a non-numeric contTime must raise ValueError."""
-    from my_swamp.model import run_model_scan
+    from my_swampe.model import run_model_scan
 
     with pytest.raises(ValueError, match=r"numeric"):
         run_model_scan(**_BASE_KWARGS, tmax=4, contflag=True, contTime="not-a-number")

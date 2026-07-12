@@ -41,7 +41,7 @@ import numpy as np
 
 
 def _build_pipeline(use_x64: bool):
-    os.environ["SWAMPE_JAX_ENABLE_X64"] = "1" if use_x64 else "0"
+    os.environ["MY_SWAMPE_ENABLE_X64"] = "1" if use_x64 else "0"
     os.environ.setdefault("JAX_ENABLE_X64", "1" if use_x64 else "0")
     import pipeline as P
     cfg = P.fast_cpu_config(use_x64=use_x64)

@@ -17,7 +17,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from my_swamp.model import run_model_scan, run_model_scan_final
+from my_swampe.model import run_model_scan, run_model_scan_final
 
 
 _COMMON = dict(

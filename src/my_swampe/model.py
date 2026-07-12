@@ -1,5 +1,5 @@
 # ruff: noqa: E741
-"""my_swamp.model
+"""my_swampe.model
 
 JAX rewrite of SWAMPE's main driver (spectral shallow-water model).
 

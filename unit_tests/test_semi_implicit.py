@@ -19,7 +19,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from my_swamp.model import assert_finite_state, run_model_scan, run_model_scan_final
+from my_swampe.model import assert_finite_state, run_model_scan, run_model_scan_final
 
 
 _SYNTH = dict(

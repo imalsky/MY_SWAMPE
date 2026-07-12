@@ -1,4 +1,4 @@
-# Contributing to MY_SWAMP
+# Contributing to MY_SWAMPE
 
 Thank you for considering a contribution. By participating in this project you
 agree to abide by the [Code of Conduct](CODE_OF_CONDUCT.md).

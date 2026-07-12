@@ -89,7 +89,7 @@ def _assert_x64_enabled() -> None:
     if not bool(jax.config.read("jax_enable_x64")):
         raise AssertionError(
             "Parity regression tests require float64 mode. "
-            "Set SWAMPE_JAX_ENABLE_X64=1 (and/or JAX_ENABLE_X64=1)."
+            "Set MY_SWAMPE_ENABLE_X64=1 (and/or JAX_ENABLE_X64=1)."
         )
 
 
@@ -98,7 +98,7 @@ def _assert_x64_enabled() -> None:
 def test_reference_parity_terminal_and_snapshots(case_name: str) -> None:
     """Verify parity against the saved terminal fields and snapshot diagnostics."""
     _assert_x64_enabled()
-    from my_swamp.model import run_model_scan
+    from my_swampe.model import run_model_scan
 
     ref = np.load(FIXTURE_DIR / f"{case_name}.npz")
     kwargs = dict(CASES[case_name]["kwargs"])
@@ -135,7 +135,7 @@ def test_reference_parity_terminal_and_snapshots(case_name: str) -> None:
 def test_reference_retrieval_projection_parity(case_name: str) -> None:
     """Verify parity for the simplified retrieval phase-curve projection."""
     _assert_x64_enabled()
-    from my_swamp.model import run_model_scan_final
+    from my_swampe.model import run_model_scan_final
 
     ref = np.load(FIXTURE_DIR / f"{case_name}.npz")
     kwargs = dict(CASES[case_name]["kwargs"])

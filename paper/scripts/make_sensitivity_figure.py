@@ -48,7 +48,7 @@ import os
 
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
 os.environ.setdefault("JAX_PLATFORM_NAME", "cpu")
-os.environ.setdefault("SWAMPE_JAX_ENABLE_X64", "1")
+os.environ.setdefault("MY_SWAMPE_ENABLE_X64", "1")
 os.environ.setdefault("JAX_ENABLE_X64", "1")
 os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/mpl")
@@ -70,8 +70,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.colors import TwoSlopeNorm  # noqa: E402
 
-from my_swamp.initial_conditions import spectral_params  # noqa: E402
-from my_swamp.model import run_model_scan_final  # noqa: E402
+from my_swampe.initial_conditions import spectral_params  # noqa: E402
+from my_swampe.model import run_model_scan_final  # noqa: E402
 
 jax.config.update("jax_enable_x64", True)
 

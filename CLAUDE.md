@@ -1,4 +1,4 @@
-# Claude guide for `my_swamp`
+# Claude guide for `my_swampe`
 
 This file is the in-repo briefing for an AI coding assistant working on this
 package. It is short on purpose. If you only read one file before editing
@@ -8,7 +8,7 @@ code, read this one.
 
 ## 1. What this project is
 
-`my_swamp` is a JAX rewrite of the NumPy/SciPy SWAMPE spectral shallow-water
+`my_swampe` is a JAX rewrite of the NumPy/SciPy SWAMPE spectral shallow-water
 model on the sphere. The numerical core runs inside `jax.lax.scan`, so the
 forward simulation is end-to-end differentiable with respect to continuous
 physical parameters and explicit initial conditions.
@@ -33,14 +33,14 @@ It is **not** shipped inside this package.
 ## 2. Repo layout
 
 ```
-MY_SWAMP/
+MY_SWAMPE/
 ├── CLAUDE.md                    # this file
 ├── README.md                    # user-facing docs, install, examples
 ├── CONTRIBUTING.md              # contribution conventions
 ├── LICENCE.txt                  # BSD-3-Clause
 ├── pyproject.toml               # build metadata, deps, ruff/pytest config
 ├── setup.py                     # legacy setuptools shim
-├── src/my_swamp/
+├── src/my_swampe/
 │   ├── __init__.py              # package entry; sets jax_enable_x64
 │   ├── _version.py
 │   ├── dtypes.py                # float_dtype / complex_dtype switch on x64
@@ -69,7 +69,7 @@ MY_SWAMP/
 ├── scripts/                     # general-purpose, NOT paper-specific (not pytest-collected)
 │   ├── benchmark_scan.py             # forward-scan wall-clock microbenchmark
 │   └── generate_reference_parity_fixtures.py  # regenerates unit_tests/fixtures/*.npz
-├── retrieval/                   # downstream app: differentiable SWAMP -> phase-curve retrieval
+├── retrieval/                   # downstream app: differentiable MY_SWAMPE -> phase-curve retrieval
 │   ├── run_smc.py                    # BlackJAX adaptive tempered SMC (gradient-informed kernel)
 │   ├── plot_smc.py                   # posterior / diagnostics plots
 │   ├── run.sh                        # SLURM launcher
@@ -80,7 +80,7 @@ MY_SWAMP/
     ├── speed_benchmark.md             # CPU/GPU speed numbers + how they map into paper.tex
     ├── scripts/                       # ALL paper-specific generators live here (2026-06-30 move
     │   │                              # from top-level tests/ + scripts/, for self-containment)
-    │   ├── compare_long_run_parity.py    # SWAMPE vs my_swamp parity (Fig. 1) + CPU speed numbers
+    │   ├── compare_long_run_parity.py    # SWAMPE vs my_swampe parity (Fig. 1) + CPU speed numbers
     │   ├── make_sensitivity_figure.py    # Figure 2 (100-day AD sensitivity maps)
     │   ├── benchmark_gradient.py         # reverse-mode grad cost + vmap throughput (CPU)
     │   ├── swampe_gpu_vmap_test.ipynb    # GPU batched-throughput sweep (Colab; the real source
@@ -141,7 +141,7 @@ section in this file.
     not the spectral coefficients (`etam_prev`, etc.). This deliberate
     desync is preserved.
 11. **Float64 mode is required for parity-grade comparisons.**
-    `SWAMPE_JAX_ENABLE_X64=1` (default) → `jax_enable_x64=True`. The
+    `MY_SWAMPE_ENABLE_X64=1` (default) → `jax_enable_x64=True`. The
     reference SWAMPE uses NumPy/SciPy at float64 by default.
 12. **`_forcing_phys` computes `F`/`G`/`PhiF` whenever `test is None`**,
     regardless of `forcflag`. This is required for parity with the SWAMPE
@@ -156,7 +156,7 @@ this list first.
 
 ## 4. Public API contract
 
-Top-level entry points (all in `my_swamp.model`):
+Top-level entry points (all in `my_swampe.model`):
 
 | Function | Use when |
 |----------|----------|
@@ -165,7 +165,7 @@ Top-level entry points (all in `my_swamp.model`):
 | `run_model_scan_final(...)` | Recommended for AD/optimization. Same as above with `return_history=False`. Memory ∝ J·I, not tmax·J·I. |
 | `run_model_gpu(...)` | Wrapper around `run_model` with GPU/AD-friendly defaults (`plotflag=False, saveflag=False, as_numpy=False, jit_scan=True`). |
 | `assert_finite_state(last_state)` | Host-side NaN/Inf check after `diagnostics=False` runs. |
-| `fwd_grad(loss, theta, chunk=None)` | In `my_swamp.autodiff_utils`. Forward-mode gradient with optional JVP chunking. |
+| `fwd_grad(loss, theta, chunk=None)` | In `my_swampe.autodiff_utils`. Forward-mode gradient with optional JVP chunking. |
 
 Required minimum kwargs for any `run_model_scan*` call:
 `M`, `dt`, `tmax`, `Phibar`, `omega`, `a`.
@@ -222,17 +222,17 @@ Run it first whenever you touch the scan body.
 
 ```bash
 # All tests, x64 mode (the one that has to pass before merging anything):
-JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 JAX_ENABLE_X64=1 pytest -q
+JAX_PLATFORMS=cpu MY_SWAMPE_ENABLE_X64=1 JAX_ENABLE_X64=1 pytest -q
 
 # Smoke only (fast):
-JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 pytest -q -m smoke
+JAX_PLATFORMS=cpu MY_SWAMPE_ENABLE_X64=1 pytest -q -m smoke
 
 # Parity only:
-JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 pytest -q -m parity
+JAX_PLATFORMS=cpu MY_SWAMPE_ENABLE_X64=1 pytest -q -m parity
 
 # Confirm that the x64 gate actually fires (these parity tests are
 # expected to FAIL — that's the validation of the gate):
-JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=0 JAX_ENABLE_X64=0 pytest -q -m parity
+JAX_PLATFORMS=cpu MY_SWAMPE_ENABLE_X64=0 JAX_ENABLE_X64=0 pytest -q -m parity
 
 # Lint:
 ruff check src unit_tests scripts paper/scripts
@@ -240,10 +240,10 @@ ruff check src unit_tests scripts paper/scripts
 # Long-run parity vs reference SWAMPE (requires ../SWAMPE/ to exist;
 # not part of pytest because it takes minutes). Also the paper's CPU speed
 # benchmark source (--days 10); see paper/benchmark_data/README.md.
-JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 python paper/scripts/compare_long_run_parity.py --days 100
+JAX_PLATFORMS=cpu MY_SWAMPE_ENABLE_X64=1 python paper/scripts/compare_long_run_parity.py --days 100
 
 # Regenerate parity fixtures (after a deliberate numerics change):
-JAX_PLATFORMS=cpu SWAMPE_JAX_ENABLE_X64=1 python scripts/generate_reference_parity_fixtures.py
+JAX_PLATFORMS=cpu MY_SWAMPE_ENABLE_X64=1 python scripts/generate_reference_parity_fixtures.py
 
 # Benchmark:
 python scripts/benchmark_scan.py --M 42 --tmax 300 --timed-runs 3
@@ -294,7 +294,7 @@ parity quirk, also extend `test_parity_quirks.py`.
 
 - **The save filename arithmetic in `compute_timestamp(units, t, dt)` is
   multiplicative**, so SWAMPE's swapped-arg call `(units, dt, t)` happens to
-  produce the right filename. MY_SWAMP fixed the call site (`model.py`
+  produce the right filename. MY_SWAMPE fixed the call site (`model.py`
   calls it as `(units, t, dt)`). Don't "fix" the function signature back —
   it would break the SWAMPE-shipped pickle filenames.
 - **The `Phi+Phibar` denominator in `forcing.Rfun` is guarded** with
@@ -318,7 +318,7 @@ parity quirk, also extend `test_parity_quirks.py`.
   propagation. The new `dead_first_idx` field in the scan return tells you
   the first scan-step index at which the gate tripped (if it did).
 - **Imports ordering matters for `jax_enable_x64`.** Setting
-  `SWAMPE_JAX_ENABLE_X64=1` after JAX has already created arrays does
+  `MY_SWAMPE_ENABLE_X64=1` after JAX has already created arrays does
   nothing. The package `__init__.py` reads the env var and configures JAX
   before any of the model modules import `jax.numpy`. Don't move JAX
   imports above the config block.
@@ -370,7 +370,7 @@ When you make a change that affects locked numerical behavior:
 
 This package has one production downstream consumer in this workspace:
 the `gcmulator` repository at `../gcmulator/`. It is **not** part of
-`my_swamp`, but any non-trivial change here can break it. Read this
+`my_swampe`, but any non-trivial change here can break it. Read this
 section before refactoring public APIs in `model.py`,
 `spectral_transform.py`, or the forcing/diffusion modules.
 
@@ -380,7 +380,7 @@ A PyTorch-based emulator that learns a **direct-jump** transition
 operator on the sphere:
 
 ```
-(state0, params, transition_days)  →  state1  ≈  MY_SWAMP(state0, params, transition_days)
+(state0, params, transition_days)  →  state1  ≈  MY_SWAMPE(state0, params, transition_days)
 ```
 
 - Architecture: a Spherical Fourier Neural Operator (SFNO) from
@@ -389,7 +389,7 @@ operator on the sphere:
   conditioning vector into each SFNO stage as per-channel scale/shift.
   Optional fixed big-skip via `residual_prediction=True`.
 - State channels: `("Phi", "U", "V", "eta", "delta")` (the same five
-  fields MY_SWAMP exposes as `last_state.{Phi,U,V,eta,delta}_curr`).
+  fields MY_SWAMPE exposes as `last_state.{Phi,U,V,eta,delta}_curr`).
 - Conditioning: 7 physical scalars
   `(a_m, omega_rad_s, Phibar, DPhieq, taurad_s, taudrag_s, g_m_s2)`
   plus a derived `log10_transition_days` channel.
@@ -402,7 +402,7 @@ operator on the sphere:
 Both stages use the same `config.json`. CLI:
 
 ```bash
-# Stage 1: data generation (calls MY_SWAMP under the hood)
+# Stage 1: data generation (calls MY_SWAMPE under the hood)
 python -m gcmulator --gen --config config.json
 # → writes data/raw_*/sim_NNNNNN.npy + manifest.json
 
@@ -412,45 +412,45 @@ python -m gcmulator --train --config config.json
 ```
 
 The shipped `run.sh` (Slurm-friendly) wraps both stages, reinstalls
-`my_swamp` and `torch_harmonics==0.8.1` from pinned package specs, and
+`my_swampe` and `torch_harmonics==0.8.1` from pinned package specs, and
 chains gen→train conditionally on the dataset already existing.
 
-### 12.3 How `gcmulator` couples to `my_swamp`
+### 12.3 How `gcmulator` couples to `my_swampe`
 
-`gcmulator/src/gcmulator/my_swamp_backend.py` is the single integration
+`gcmulator/src/gcmulator/my_swampe_backend.py` is the single integration
 seam. Everything else in the emulator goes through it. The imports it
 relies on:
 
 | Import | Stability | Notes |
 |---|---|---|
-| `from my_swamp.model import RunFlags` | **Public** | OK to refactor only with a new field added compatibly. |
-| `from my_swamp.model import run_model_scan` | **Public** | The data-generation entry point. Used with `return_history=False`, `donate_state=True`. |
-| `from my_swamp.model import build_static` | **Public-ish** | Used by the diagnostic wind reconstruction. Currently exported from `model.py` but not in `__all__`. **If you remove or rename `build_static`, the emulator breaks at retrieval-time wind reconstruction.** |
-| `from my_swamp.model import _step_once` | **Private** | Used to build a custom batched chunked scan inside `_get_reduced_carry_chunk_runner`. **Renaming or changing the signature of `_step_once` silently breaks `gcmulator` data generation.** |
-| `from my_swamp.model import _step_once_state_only` | **Private** | Same hazard as `_step_once`. Used by the batched checkpoint runner. |
-| `from my_swamp import spectral_transform as st` | **Public module** | Used to recompute winds from `(eta, delta)` via FFT + Legendre + `invrsUV`. |
+| `from my_swampe.model import RunFlags` | **Public** | OK to refactor only with a new field added compatibly. |
+| `from my_swampe.model import run_model_scan` | **Public** | The data-generation entry point. Used with `return_history=False`, `donate_state=True`. |
+| `from my_swampe.model import build_static` | **Public-ish** | Used by the diagnostic wind reconstruction. Currently exported from `model.py` but not in `__all__`. **If you remove or rename `build_static`, the emulator breaks at retrieval-time wind reconstruction.** |
+| `from my_swampe.model import _step_once` | **Private** | Used to build a custom batched chunked scan inside `_get_reduced_carry_chunk_runner`. **Renaming or changing the signature of `_step_once` silently breaks `gcmulator` data generation.** |
+| `from my_swampe.model import _step_once_state_only` | **Private** | Same hazard as `_step_once`. Used by the batched checkpoint runner. |
+| `from my_swampe import spectral_transform as st` | **Public module** | Used to recompute winds from `(eta, delta)` via FFT + Legendre + `invrsUV`. |
 
 **Treatment**: when you rename, restructure, or change the call
 signature of `build_static`, `_step_once`, or `_step_once_state_only`,
 either (a) keep a backward-compatible alias for one release, or (b)
-update `gcmulator/src/gcmulator/my_swamp_backend.py` in the same PR.
+update `gcmulator/src/gcmulator/my_swampe_backend.py` in the same PR.
 
 `gcmulator` also calls `enforce_no_tpu_backend()`, which sets
-`SWAMPE_JAX_ENABLE_X64=1` and strips `tpu` from `JAX_PLATFORMS`/
+`MY_SWAMPE_ENABLE_X64=1` and strips `tpu` from `JAX_PLATFORMS`/
 `JAX_PLATFORM_NAME` before any JAX import. If you change the env-var
-contract in `my_swamp/__init__.py`, mirror the change in
-`my_swamp_backend.py`.
+contract in `my_swampe/__init__.py`, mirror the change in
+`my_swampe_backend.py`.
 
 ### 12.4 Geometry contract
 
 `gcmulator` stores all on-disk and in-memory state tensors in the
-canonical orientation `(north→south, 0→2π)`. MY_SWAMP returns
+canonical orientation `(north→south, 0→2π)`. MY_SWAMPE returns
 `(south→north, -π→π)` from `state_var_init`. The bridge lives in
 `gcmulator/src/gcmulator/geometry.py`:
 `apply_geometry_state(state, flip_latitude_to_north_south=True,
 roll_longitude_to_0_2pi=True)`.
 
-If you change the latitude or longitude convention in MY_SWAMP
+If you change the latitude or longitude convention in MY_SWAMPE
 (`build_lambdas`, `gauss_legendre`, or `state_var_init`), the
 emulator's geometry module will silently produce a permuted state
 tensor and training will diverge in subtle ways. **Don't change those
@@ -458,16 +458,16 @@ conventions without coordinating.**
 
 ### 12.5 Internal-fixed parameters
 
-`K6` and `K6Phi` are MY_SWAMP-side hyperdiffusion controls. The
+`K6` and `K6Phi` are MY_SWAMPE-side hyperdiffusion controls. The
 emulator deliberately holds them fixed across all sims:
 
 ```python
 INTERNAL_FIXED_K6 = 1.24e33     # gcmulator/sampling.py
-INTERNAL_FIXED_K6PHI = None     # → MY_SWAMP inherits K6 for Phi diffusion
+INTERNAL_FIXED_K6PHI = None     # → MY_SWAMPE inherits K6 for Phi diffusion
 ```
 
 They are **not** part of the conditioning vector. If you change the
-default `K6` in MY_SWAMP, you change the trained emulator's
+default `K6` in MY_SWAMPE, you change the trained emulator's
 out-of-distribution behavior — bump the dataset version
 (`config.paths.dataset_dir`) so a fresh model gets trained.
 
@@ -484,7 +484,7 @@ gcmulator/
 │   ├── data_generation.py       # --gen entry
 │   ├── geometry.py              # north↔south / [-π,π)↔[0,2π) bridge
 │   ├── modeling.py              # FiLM-SFNO + SphereLoss + coord channels
-│   ├── my_swamp_backend.py      # *** the only integration seam ***
+│   ├── my_swampe_backend.py      # *** the only integration seam ***
 │   ├── normalization.py         # state + param + log10_transition_days stats
 │   ├── sampling.py              # parameter draws + checkpoint schedules + live pair catalog
 │   └── training.py              # preprocess + train + checkpointing
@@ -494,8 +494,8 @@ gcmulator/
 │   └── run_surrogate_nss.py     # standalone inference benchmark
 ├── extra/
 │   ├── pytorch_export.py        # checkpoint → TorchScript with embedded normalization
-│   ├── predictions.py           # offline rollout / comparison vs MY_SWAMP
-│   ├── swampe_parity_compare.py # emulator vs MY_SWAMP field comparison
+│   ├── predictions.py           # offline rollout / comparison vs MY_SWAMPE
+│   ├── swampe_parity_compare.py # emulator vs MY_SWAMPE field comparison
 │   ├── batch_size_benchmark.py
 │   └── training_log.py
 └── unit_tests/                  # 64 tests across 13 files
@@ -503,22 +503,22 @@ gcmulator/
 
 ### 12.7 Tests in the sibling repo
 
-`gcmulator` ships its own pytest suite (no shared markers with MY_SWAMP).
+`gcmulator` ships its own pytest suite (no shared markers with MY_SWAMPE).
 The 64 tests cover: config schema validation, geometry bridges, sampling
 catalogs, normalization round-trip, training scheduler/logging,
 modeling shapes (FiLM, big-skip, channel-weighted SphereLoss), and the
 TorchScript retrieval contract.
 
 `gcmulator/unit_tests/conftest.py` adds *both* `gcmulator/src/` and
-`MY_SWAMP/src/` to `sys.path`, so emulator tests run against this
-working tree's `my_swamp` (not the installed one). Keep that in mind
+`MY_SWAMPE/src/` to `sys.path`, so emulator tests run against this
+working tree's `my_swampe` (not the installed one). Keep that in mind
 when running the emulator suite from a clean checkout — break this
 project's `src/` and `gcmulator` tests will fail too.
 
 ### 12.8 Retrieval / inference path
 
 Trained checkpoints can be exported to a self-contained TorchScript
-bundle that no longer depends on `my_swamp`:
+bundle that no longer depends on `my_swampe`:
 
 ```bash
 python gcmulator/extra/pytorch_export.py
@@ -532,23 +532,23 @@ contract is "physical state in, physical state out":
 loader (`retrieval/surrogate_backend.py::TorchSurrogateRuntime`)
 batches calls and applies `torch.jit.optimize_for_inference()`.
 
-The retrieval path **does not load `my_swamp`** at inference time.
+The retrieval path **does not load `my_swampe`** at inference time.
 This is the supported way to use the emulator in downstream pipelines.
-If a retrieval consumer reaches back into `my_swamp.model` directly,
+If a retrieval consumer reaches back into `my_swampe.model` directly,
 that's a contract violation — flag it.
 
 ### 12.9 Common pitfalls when bridging the two
 
 - **Don't change `_step_once` or `_step_once_state_only` signatures
   silently.** They look private but are imported by
-  `gcmulator/src/gcmulator/my_swamp_backend.py`.
+  `gcmulator/src/gcmulator/my_swampe_backend.py`.
 - **Don't change which fields are in `State`.** The reduced carry
-  in `my_swamp_backend.ReducedCarrySnapshot` reads
+  in `my_swampe_backend.ReducedCarrySnapshot` reads
   `Phi_curr, U_curr, V_curr, eta_curr, delta_curr,
   Phi_prev, eta_prev, delta_prev` directly from `last_state`. Renaming
   any of these fields breaks `gcmulator` checkpoint extraction.
-- **Don't change geometry conventions** in MY_SWAMP without updating
-  `gcmulator.geometry`. The emulator has no test for "MY_SWAMP returned
+- **Don't change geometry conventions** in MY_SWAMPE without updating
+  `gcmulator.geometry`. The emulator has no test for "MY_SWAMPE returned
   the wrong orientation" — it would just train on a transposed sphere.
 - **Don't tighten `K6` / `K6Phi` defaults** without bumping the
   emulator dataset name. The trained model has implicitly memorized the
@@ -557,7 +557,7 @@ that's a contract violation — flag it.
   invariants** in `run_model_scan` — the emulator generates ~500
   trajectories × 100 days each per run, and donation is what keeps it
   inside GPU memory.
-- **Don't change the `SWAMPE_JAX_ENABLE_X64` env-var name** without
+- **Don't change the `MY_SWAMPE_ENABLE_X64` env-var name** without
   updating `enforce_no_tpu_backend()` in the emulator, or float64
   parity will silently degrade to float32 during data generation.
 

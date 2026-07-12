@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -N SWAMP_W43B
+#PBS -N MY_SWAMPE_W43B
 #PBS -q gpu_long
 #PBS -W group_list=s2458
 #PBS -l select=1:ncpus=72:ngpus=1:mem=400gb:model=gh200
@@ -47,9 +47,9 @@ source "${CONDA_BASE}/etc/profile.d/conda.sh"
 CONDA_ENV="${CONDA_ENV:-pyt2_8_gh}"
 conda activate "${CONDA_ENV}"
 
-: "${SWAMP_RETRIEVAL_SCRATCH:=/nobackup/${USER}/.swamp_retrieval}"
-export PYTHONUSERBASE="${SWAMP_RETRIEVAL_SCRATCH}/userbase"
-export PIP_CACHE_DIR="${SWAMP_RETRIEVAL_SCRATCH}/cache/pip"
+: "${MY_SWAMPE_RETRIEVAL_SCRATCH:=/nobackup/${USER}/.swampe_retrieval}"
+export PYTHONUSERBASE="${MY_SWAMPE_RETRIEVAL_SCRATCH}/userbase"
+export PIP_CACHE_DIR="${MY_SWAMPE_RETRIEVAL_SCRATCH}/cache/pip"
 unset PYTHONNOUSERSITE
 mkdir -p "${PYTHONUSERBASE}" "${PIP_CACHE_DIR}"
 
@@ -83,13 +83,13 @@ python -u scripts/fetch_wasp43b_data.py
 python -u scripts/prepare_wasp43b_observations.py
 
 export PROJECT_ROOT
-export SWAMP_RETRIEVAL_PRESET="${SWAMP_RETRIEVAL_PRESET:-gpu}"
-export SWAMP_RETRIEVAL_USE_X64="${SWAMP_RETRIEVAL_USE_X64:-1}"
+export MY_SWAMPE_RETRIEVAL_PRESET="${MY_SWAMPE_RETRIEVAL_PRESET:-gpu}"
+export MY_SWAMPE_RETRIEVAL_USE_X64="${MY_SWAMPE_RETRIEVAL_USE_X64:-1}"
 # Production config (30 h-budget run: semi-implicit dt=600, N=256, per-stage MALA
 # adaptation, eclipse-edge masking). Point at config/wasp43b_pilot_gpu.json to
 # reproduce the 2026-07 pilot instead.
-export SWAMP_RETRIEVAL_OVERRIDES_FILE="${SWAMP_RETRIEVAL_OVERRIDES_FILE:-${SUITE_DIR}/config/wasp43b_production_gpu.json}"
-export SWAMP_PLOT_OUT_DIR="${SUITE_DIR}/outputs"
-export SWAMP_PLOTS_DIR="${SUITE_DIR}/plots"
+export MY_SWAMPE_RETRIEVAL_OVERRIDES_FILE="${MY_SWAMPE_RETRIEVAL_OVERRIDES_FILE:-${SUITE_DIR}/config/wasp43b_production_gpu.json}"
+export MY_SWAMPE_PLOT_OUT_DIR="${SUITE_DIR}/outputs"
+export MY_SWAMPE_PLOTS_DIR="${SUITE_DIR}/plots"
 
 bash "${RETRIEVAL_DIR}/run_nas.pbs"

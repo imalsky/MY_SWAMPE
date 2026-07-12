@@ -9,7 +9,7 @@ Reads the .npz outputs (no JAX, no re-run) and assembles a single
   (d,e) 1-D marginals with truth + prior range
   (f) terminal brightness-temperature map (truth)
 
-    python make_dashboard.py [OUT_DIR]   # default ./swamp_jaxoplanet_retrieval_outputs
+    python make_dashboard.py [OUT_DIR]   # default ./swampe_jaxoplanet_retrieval_outputs
 """
 import json
 import math
@@ -39,8 +39,8 @@ if _STYLE_FILE.exists():
     plt.style.use(str(_STYLE_FILE))
 
 # data read from retrieval/data/, figure written to retrieval/plots/
-OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(os.environ.get("SWAMP_PLOT_OUT_DIR", str(_RETRIEVAL_ROOT / "data")))
-PLOTS_DIR = Path(os.environ.get("SWAMP_PLOTS_DIR", str(_RETRIEVAL_ROOT / "plots")))
+OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(os.environ.get("MY_SWAMPE_PLOT_OUT_DIR", str(_RETRIEVAL_ROOT / "data")))
+PLOTS_DIR = Path(os.environ.get("MY_SWAMPE_PLOTS_DIR", str(_RETRIEVAL_ROOT / "plots")))
 
 # Okabe-Ito colorblind-safe qualitative palette (Okabe & Ito 2002; Wong, Nature
 # Methods 2011) -- same role -> color mapping used in plot_smc.py.
@@ -57,6 +57,18 @@ LOG_AXIS_MIN_VISIBLE_ORDERS = 1.0
 CORNER_MIN_BINS = 16
 CORNER_MAX_BINS = 32
 CORNER_SMOOTH = 1.6
+
+# Publication display transform (same convention as plot_smc.py): math-text
+# labels + unit scaling applied once to samples/prior bounds/truths.
+PARAM_DISPLAY = {
+    "tau_rad_hours": (r"$\tau_{\mathrm{rad}}$ [h]", 1.0),
+    "tau_drag_hours": (r"$\tau_{\mathrm{drag}}$ [h]", 1.0),
+    "planet_fpfs": (r"$F_p/F_s$ [ppm]", 1.0e6),
+    "planet_radius_rjup": (r"$R_p$ [$R_{\mathrm{Jup}}$]", 1.0),
+    "Phibar": (r"$\bar{\Phi}$ [$10^6\,\mathrm{m^2\,s^{-2}}$]", 1.0e-6),
+    "DPhieq": (r"$\Delta\Phi_{\mathrm{eq}}$ [$10^6\,\mathrm{m^2\,s^{-2}}$]", 1.0e-6),
+    "noise_inflation": (r"noise inflation $k$", 1.0),
+}
 
 
 def load(name):
@@ -123,6 +135,55 @@ def display_log_axis(bounds: Tuple[float, float]) -> bool:
     return orders_of_magnitude_span(float(lo), float(hi)) >= LOG_AXIS_MIN_VISIBLE_ORDERS
 
 
+# Astronomical constants for the eclipse-anchored baseline (same convention as plot_smc.py).
+G_SI = 6.6743e-11
+MSUN_KG = 1.98892e30
+RSUN_M = 6.957e8
+RJUP_M = 7.1492e7
+DAY_S = 86400.0
+
+
+def eclipse_anchored_stellar_baseline(t, f, cfg, period):
+    """Stellar-flux baseline F_s(t) anchored on full-occultation bottoms (F = F_s
+    during eclipse). Pins the F_p/F_s zero point and divides out the linear ramp,
+    matching the JWST phase-curve papers (e.g. Kempton et al. 2023). Returns None
+    when geometry is missing or no eclipse is covered."""
+    try:
+        t0 = float(cfg.get("time_transit_days", 0.0))
+        m_star = float(cfg["star_mass_msun"]) * MSUN_KG
+        r_star = float(cfg["star_radius_rsun"]) * RSUN_M
+        r_planet = float(cfg["planet_radius_rjup"]) * RJUP_M
+        b = float(cfg["impact_param"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    period_s = period * DAY_S
+    a_orb = (G_SI * m_star * period_s**2 / (4.0 * math.pi**2)) ** (1.0 / 3.0)
+    a_rs = a_orb / r_star
+    k = r_planet / r_star
+    cos_i = b / a_rs
+    sin_i = math.sqrt(max(0.0, 1.0 - cos_i**2))
+    arg = (1.0 - k) ** 2 - b**2
+    if arg <= 0.0 or sin_i <= 0.0 or a_rs <= 1.0:
+        return None
+    x = math.sqrt(arg) / (a_rs * sin_i)
+    if x >= 1.0:
+        return None
+    t23_half = 0.5 * (period / math.pi) * math.asin(x)
+    n_lo = int(math.floor((float(np.min(t)) - t0) / period - 0.5))
+    n_hi = int(math.ceil((float(np.max(t)) - t0) / period - 0.5))
+    groups = []
+    for n in range(n_lo, n_hi + 1):
+        g = np.abs(t - (t0 + (n + 0.5) * period)) < 0.85 * t23_half
+        if int(g.sum()) >= 3:
+            groups.append(g)
+    if not groups:
+        return None
+    anchor = np.logical_or.reduce(groups)
+    if len(groups) >= 2 and int(anchor.sum()) >= 6:
+        return np.polyval(np.polyfit(t[anchor], f[anchor], 1), t)
+    return np.full_like(np.asarray(t, dtype=float), float(np.median(f[anchor])))
+
+
 def adaptive_corner_bins(values: np.ndarray, bounds: Tuple[float, float], *, use_log: bool) -> int:
     """Choose a stable corner-plot bin count from visible samples."""
     lo, hi = bounds
@@ -158,11 +219,26 @@ def main():
 
     names = [str(x) for x in samps["param_names"].tolist()]
     labels = [str(x) for x in samps["param_labels"].tolist()] if "param_labels" in samps.files else names
-    S = np.asarray(samps["samples"]).reshape(-1, len(names))
+    S = np.array(samps["samples"], dtype=float).reshape(-1, len(names))
     truth = np.asarray(cfg.get("inferred_param_truth") or [np.nan] * len(names), float)
     plo = np.asarray(cfg.get("inferred_param_prior_lo"), float)
     phi_ = np.asarray(cfg.get("inferred_param_prior_hi"), float)
     ptypes = [str(x) for x in cfg.get("inferred_param_prior_types", [])]
+
+    for j, name in enumerate(names):
+        disp = PARAM_DISPLAY.get(name)
+        if disp is None:
+            continue
+        labels[j] = disp[0]
+        scale = disp[1]
+        if scale != 1.0:
+            S[:, j] *= scale
+            if j < plo.size:
+                plo[j] *= scale
+            if j < phi_.size:
+                phi_[j] *= scale
+            if j < truth.size:
+                truth[j] *= scale
 
     def is_log(i):
         # Log axis whenever that parameter's own prior is log-uniform (its native
@@ -173,27 +249,40 @@ def main():
     fobs = np.asarray(obs["flux_obs"]); sigma = float(obs["obs_sigma"])
     ftrue = np.asarray(obs["flux_true"]) if "flux_true" in obs.files else np.full_like(fobs, np.nan)
     has_flux_true = bool(np.isfinite(ftrue).any())
+    period = float(obs["orbital_period_days"]) if "orbital_period_days" in obs.files else float(
+        cfg.get("orbital_period_override_days") or 0.0)
+    f_star = eclipse_anchored_stellar_baseline(t, fobs, cfg, period) if period > 0 else None
     display_offset = 0.0 if has_flux_true else float(np.nanmedian(fobs))
 
     fig = plt.figure(figsize=(16, 9), constrained_layout=True)
     gs = GridSpec(2, 3, figure=fig)
     run_kind = "injection-recovery" if has_flux_true else "real-data pilot"
-    fig.suptitle(f"Differentiable SWAMP -> phase-curve retrieval: {run_kind} "
+    fig.suptitle(f"Differentiable MY_SWAMPE $\\rightarrow$ phase-curve retrieval: {run_kind} "
                  f"(N={int(extra['smc_num_particles']) if extra is not None and 'smc_num_particles' in extra.files else '?'} "
                  f"particles, {cfg.get('model_days')}-day spin-up, "
                  f"{sigma*1e6:.0f} ppm noise, float{'64' if cfg.get('use_x64') else '32'})",
                  fontsize=14, fontweight="bold")
 
-    # (a) phase-curve fit
+    # (a) phase-curve fit — F_p/F_s [ppm] anchored on the eclipse bottoms when
+    # the geometry allows (JWST phase-curve convention); otherwise the old
+    # median-offset display.
     ax = fig.add_subplot(gs[0, 0])
-    ax.plot(t, (fobs - display_offset) * 1e6, ".", ms=3, color=COLOR_DATA, alpha=0.5, label="observed")
+    if f_star is not None:
+        def to_display(f):
+            return (np.asarray(f) / f_star - 1.0) * 1e6
+        ax.axhline(0.0, lw=0.8, color="0.75", zorder=0)
+        ax.set_ylabel(r"planet-to-star flux, $F_p/F_s$ [ppm]")
+    else:
+        def to_display(f):
+            return (np.asarray(f) - display_offset) * 1e6
+        ax.set_ylabel("planet flux [ppm]" if has_flux_true else "relative flux $-$ median [ppm]")
+    ax.plot(t, to_display(fobs), ".", ms=3, color=COLOR_DATA, alpha=0.5, label="observed")
     if has_flux_true:
-        ax.plot(t, ftrue * 1e6, "-", lw=2, color=COLOR_TRUTH, label="truth")
+        ax.plot(t, to_display(ftrue), "-", lw=2, color=COLOR_TRUTH, label="truth")
     if ppc is not None:
-        ax.plot(t, (np.asarray(ppc["p50"]) - display_offset) * 1e6, "-", lw=1.5, color=COLOR_POSTERIOR, label="posterior median")
-        ax.fill_between(t, (np.asarray(ppc["p05"]) - display_offset) * 1e6, (np.asarray(ppc["p95"]) - display_offset) * 1e6, alpha=0.3, color=COLOR_BAND, label="90% PPC")
+        ax.plot(t, to_display(ppc["p50"]), "-", lw=1.5, color=COLOR_POSTERIOR, label="posterior median")
+        ax.fill_between(t, to_display(ppc["p05"]), to_display(ppc["p95"]), alpha=0.3, color=COLOR_BAND, label="90% PPC")
     ax.set_xlabel("time [days]")
-    ax.set_ylabel("planet flux [ppm]" if has_flux_true else "relative flux - median [ppm]")
     ax.set_title("(a) thermal phase-curve fit"); ax.legend(fontsize=8)
 
     # (b) joint posterior: KDE density contours + scatter + truth + correlation.
@@ -266,7 +355,7 @@ def main():
         betas = np.asarray(extra["smc_betas"]).reshape(-1)
         steps = np.arange(len(betas))
         ax.plot(steps, betas, "o-", color=COLOR_POSTERIOR, label="beta (temperature)")
-        ax.set_xlabel("SMC step"); ax.set_ylabel("beta", color=COLOR_POSTERIOR); ax.set_ylim(-0.02, 1.05)
+        ax.set_xlabel("SMC step"); ax.set_ylabel(r"$\beta$", color=COLOR_POSTERIOR); ax.set_ylim(-0.02, 1.05)
         ax.set_title("(c) SMC convergence")
         if "smc_ess" in extra.files:
             ess = np.asarray(extra["smc_ess"]).reshape(-1)
@@ -325,13 +414,19 @@ def main():
             map_key, map_label = "T_post", "posterior median"
     if map_key is not None:
         lon = np.degrees(np.asarray(maps["lon"])); lat = np.degrees(np.asarray(maps["lat"]))
-        T = np.asarray(maps[map_key])
-        im = ax.pcolormesh(lon, lat, T, shading="auto", cmap="inferno")
+        # physically non-negative (pipeline floors T at Tmin_K > 0); clip defensively
+        T = np.clip(np.asarray(maps[map_key]), 0.0, None)
+        im = ax.pcolormesh(lon, lat, T, shading="auto", cmap="inferno", rasterized=True)
         fig.colorbar(im, ax=ax, label="T [K]")
+        ax.plot(0.0, 0.0, marker="+", ms=10, mew=1.5, color="w")
+        ax.set_xticks(np.arange(-180.0, 181.0, 60.0))
         ax.set_xlabel("longitude [deg]"); ax.set_ylabel("latitude [deg]")
         ax.set_title(f"(f) terminal brightness-T map ({map_label})")
     else:
-        ax.set_title("(f) maps unavailable")
+        ax.text(0.5, 0.5, "maps unavailable\n(re-run the maps stage of run_smc.py)",
+                ha="center", va="center", fontsize=11, color="0.4", transform=ax.transAxes)
+        ax.set_axis_off()
+        ax.set_title("(f) terminal brightness-T map")
 
     path = PLOTS_DIR / "results_dashboard.png"
     path.parent.mkdir(parents=True, exist_ok=True)

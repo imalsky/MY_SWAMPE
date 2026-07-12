@@ -8,10 +8,10 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 
-from my_swamp.dtypes import float_dtype
-from my_swamp import initial_conditions as ic
-from my_swamp import spectral_transform as st
-from my_swamp import time_stepping as tstep
+from my_swampe.dtypes import float_dtype
+from my_swampe import initial_conditions as ic
+from my_swampe import spectral_transform as st
+from my_swampe import time_stepping as tstep
 
 
 # These tests are numerically sensitive because they exercise chained FFT and

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # ruff: noqa: E741
-"""my_swamp.explicit_tdiff
+"""my_swampe.explicit_tdiff
 
 Explicit (leapfrog-style) time differencing following Hack and Jakob (1992).
 

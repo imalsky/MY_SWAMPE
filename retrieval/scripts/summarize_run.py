@@ -6,7 +6,7 @@ injected truth vs recovered posterior (median + 68/95% CI + truth-in-CI),
 parameter correlations (the tau_rad-tau_drag degeneracy), SMC convergence
 (tempering steps, final ESS, acceptance), and the data SNR. No JAX, no re-run.
 
-    python summarize_run.py [OUT_DIR]   # default ./swamp_jaxoplanet_retrieval_outputs
+    python summarize_run.py [OUT_DIR]   # default ./swampe_jaxoplanet_retrieval_outputs
 """
 import json
 import os
@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(
-    os.environ.get("SWAMP_PLOT_OUT_DIR", str(Path(__file__).resolve().parent.parent / "data"))
+    os.environ.get("MY_SWAMPE_PLOT_OUT_DIR", str(Path(__file__).resolve().parent.parent / "data"))
 )
 
 

@@ -6,10 +6,10 @@ import pytest
 
 @pytest.mark.smoke
 def test_import_and_version() -> None:
-    """Verify that `my_swamp` imports and exposes a version string."""
+    """Verify that `my_swampe` imports and exposes a version string."""
     # JAX is a required runtime dependency for the numerical core.
     import jax  # noqa: F401  # pylint: disable=unused-import
-    import my_swamp  # noqa: F401  # pylint: disable=unused-import
+    import my_swampe  # noqa: F401  # pylint: disable=unused-import
 
-    assert hasattr(my_swamp, "__version__")
-    assert re.match(r"^\d+\.\d+\.\d+$", my_swamp.__version__), "Version should look like x.y.z"
+    assert hasattr(my_swampe, "__version__")
+    assert re.match(r"^\d+\.\d+\.\d+$", my_swampe.__version__), "Version should look like x.y.z"
