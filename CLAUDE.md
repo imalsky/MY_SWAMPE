@@ -67,6 +67,7 @@ MY_SWAMPE/
 │   ├── fixtures/*.npz           # SWAMPE-generated reference snapshots
 │   └── test_*.py
 ├── scripts/                     # general-purpose, NOT paper-specific (not pytest-collected)
+│   ├── benchmark_new_numerics.py     # opt-in RAW/semi-implicit modes vs locked defaults (readme §9)
 │   ├── benchmark_scan.py             # forward-scan wall-clock microbenchmark
 │   └── generate_reference_parity_fixtures.py  # regenerates unit_tests/fixtures/*.npz
 ├── retrieval/                   # downstream app: differentiable MY_SWAMPE -> phase-curve retrieval
