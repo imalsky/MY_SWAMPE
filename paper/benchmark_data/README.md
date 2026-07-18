@@ -75,7 +75,7 @@ python paper/scripts/swampe_gpu_vmap_test.py --sweep-days 10
 ```
 
 Both CPU runs require the sibling reference repo `../SWAMPE` (relative to the repo
-root `MY_SWAMPE/`; not shipped in this package -- see `README.md` SS2). Run them on
+root `SWAMPE-JAX/`; not shipped in this package -- see `README.md` SS2). Run them on
 an otherwise-idle machine -- timing fidelity is a wall-clock measurement, and a
 loaded machine will inflate both sides unevenly. (This bit the author once during
 this very revision: an earlier rerun was contaminated by leftover load from

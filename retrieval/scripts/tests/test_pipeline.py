@@ -1,4 +1,4 @@
-"""Correctness tests for the differentiable MY_SWAMPE -> phase-curve retrieval pipeline.
+"""Correctness tests for the differentiable SWAMPE-JAX -> phase-curve retrieval pipeline.
 
 Covers: config validation, parameter registry, forward determinism + parity
 against a direct my_swampe call, finiteness guards, the starry projector, the

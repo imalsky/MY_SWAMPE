@@ -1,6 +1,6 @@
 """Pytest setup for the retrieval test suite.
 
-These tests exercise ``retrieval/pipeline.py`` (the differentiable MY_SWAMPE ->
+These tests exercise ``retrieval/pipeline.py`` (the differentiable SWAMPE-JAX ->
 phase-curve retrieval). They run in float32 (fast) by default; the env var must
 be set BEFORE jax / my_swampe import, so we set it here at module top and add the
 package + retrieval dirs to ``sys.path`` (mirroring my_swampe's own conftest).
@@ -21,8 +21,8 @@ os.environ.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
 
 _HERE = Path(__file__).resolve()
-_SCRIPTS_DIR = _HERE.parent.parent            # MY_SWAMPE/retrieval/scripts (has pipeline.py)
-_REPO_ROOT = _SCRIPTS_DIR.parent.parent       # MY_SWAMPE
+_SCRIPTS_DIR = _HERE.parent.parent            # SWAMPE-JAX/retrieval/scripts (has pipeline.py)
+_REPO_ROOT = _SCRIPTS_DIR.parent.parent       # SWAMPE-JAX
 for p in (str(_REPO_ROOT / "src"), str(_SCRIPTS_DIR)):
     if p not in sys.path:
         sys.path.insert(0, p)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare WASP-43 b JWST/MIRI reduced light curves for MY_SWAMPE retrieval."""
+"""Prepare WASP-43 b JWST/MIRI reduced light curves for SWAMPE-JAX retrieval."""
 
 from __future__ import annotations
 
@@ -292,7 +292,7 @@ def load_and_prepare(
     mask_eclipse_edges: bool = True,
     eclipse_edge_pad_days: float = ECLIPSE_EDGE_PAD_DAYS,
 ) -> Tuple[Dict[str, np.ndarray], Dict[str, Any]]:
-    """Load the reduced MIRI light curve and return MY_SWAMPE-ready observations."""
+    """Load the reduced MIRI light curve and return SWAMPE-JAX-ready observations."""
     h5_bytes = read_h5_bytes(input_path, member)
     with h5py.File(BytesIO(h5_bytes), "r") as handle:
         time_mjd = np.asarray(handle["time"], dtype=np.float64)

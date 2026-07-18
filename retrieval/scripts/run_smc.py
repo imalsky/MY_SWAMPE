@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""run_smc.py — thin driver for the differentiable MY_SWAMPE -> phase-curve retrieval.
+"""run_smc.py — thin driver for the differentiable SWAMPE-JAX -> phase-curve retrieval.
 
 All the science (forward model, starry projector, u-space transform, likelihood,
 and the BlackJAX adaptive-tempered-SMC machinery) lives in ``pipeline.py``. This
@@ -281,7 +281,7 @@ def main() -> None:
                    p95=np.nanquantile(ppc, 0.95, axis=0), times_days=pipe.times_days)
         logger.info("Saved posterior-predictive files.")
 
-    # ---- truth + posterior-median maps (so plotting never reruns MY_SWAMPE) ----
+    # ---- truth + posterior-median maps (so plotting never reruns SWAMPE-JAX) ----
     logger.info("Computing truth + posterior-median terminal maps...")
     import jax.numpy as jnp
     s = np.load(samples_path)

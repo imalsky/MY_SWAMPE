@@ -257,7 +257,7 @@ def main():
     fig = plt.figure(figsize=(16, 9), constrained_layout=True)
     gs = GridSpec(2, 3, figure=fig)
     run_kind = "injection-recovery" if has_flux_true else "real-data pilot"
-    fig.suptitle(f"Differentiable MY_SWAMPE $\\rightarrow$ phase-curve retrieval: {run_kind} "
+    fig.suptitle(f"Differentiable SWAMPE-JAX $\\rightarrow$ phase-curve retrieval: {run_kind} "
                  f"(N={int(extra['smc_num_particles']) if extra is not None and 'smc_num_particles' in extra.files else '?'} "
                  f"particles, {cfg.get('model_days')}-day spin-up, "
                  f"{sigma*1e6:.0f} ppm noise, float{'64' if cfg.get('use_x64') else '32'})",

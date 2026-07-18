@@ -52,5 +52,5 @@ def pytest_report_header(config):
 
 
 def pytest_configure(config):
-    """Register custom pytest markers for the MY_SWAMPE test suite."""
+    """Register custom pytest markers for the SWAMPE-JAX test suite."""
     config.addinivalue_line("markers", "parity: regression tests against trusted SWAMPE reference outputs.")

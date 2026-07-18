@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """pipeline.py
 
-Importable, config-parameterized core of the differentiable MY_SWAMPE -> starry
+Importable, config-parameterized core of the differentiable SWAMPE-JAX -> starry
 phase-curve retrieval. This module factors the forward model, the starry
 projector, the u-space parameterization, the likelihood/prior, and the BlackJAX
 adaptive-tempered-SMC machinery out of the monolithic ``run_smc.py`` driver so
@@ -38,7 +38,7 @@ import numpy as np
 # --- repo / retrieval layout (this file lives in retrieval/scripts/) ----------
 _SCRIPTS_DIR = Path(__file__).resolve().parent           # retrieval/scripts
 RETRIEVAL_ROOT = _SCRIPTS_DIR.parent                     # retrieval/
-REPO_ROOT = RETRIEVAL_ROOT.parent                        # MY_SWAMPE/
+REPO_ROOT = RETRIEVAL_ROOT.parent                        # SWAMPE-JAX/
 DATA_DIR = RETRIEVAL_ROOT / "data"                       # outputs (npz, config, logs)
 PLOTS_DIR = RETRIEVAL_ROOT / "plots"                     # figures
 STYLE_FILE = _SCRIPTS_DIR / "science.mplstyle"           # publication style guide
@@ -103,7 +103,7 @@ class Config:
     # Numeric precision / XLA behavior
     use_x64: bool = False
     xla_preallocate: bool = False
-    # Mixed precision (requires use_x64=True): run the MY_SWAMPE dynamics scan —
+    # Mixed precision (requires use_x64=True): run the SWAMPE-JAX dynamics scan —
     # which is essentially the entire cost of a likelihood evaluation — in
     # float32, and cast the terminal Phi map to float64 for the emission +
     # starry projection + jaxoplanet light-curve stage. The 2026-06-30 probe
@@ -113,8 +113,8 @@ class Config:
     # Off by default: behavior is bit-identical to the pure-f64 pipeline.
     mixed_precision: bool = False
 
-    # Opt-in MY_SWAMPE numerics modes (defaults preserve the locked SWAMPE-parity
-    # scheme bit-for-bit; see MY_SWAMPE readme section 9 and CLAUDE.md section 13).
+    # Opt-in SWAMPE-JAX numerics modes (defaults preserve the locked SWAMPE-parity
+    # scheme bit-for-bit; see SWAMPE-JAX readme section 9 and CLAUDE.md section 13).
     #   semi_implicit : semi-implicit gravity-wave leapfrog + exponential
     #       hyperdiffusion. Stable at much larger dt in the hot-Jupiter regime
     #       (dt=600 s corner-validated for the WASP-43b prior box with
@@ -130,13 +130,13 @@ class Config:
     raw_filter: bool = False
     williams_alpha: float = 0.53
 
-    # MY_SWAMPE numerical params (SHAPES) - NOT inferred
+    # SWAMPE-JAX numerical params (SHAPES) - NOT inferred
     M: int = 42
     dt_seconds: float = 240.0
     model_days: float = 50.0
     starttime_index: int = 2
 
-    # MY_SWAMPE physical params (defaults / truth)
+    # SWAMPE-JAX physical params (defaults / truth)
     a_planet_m: float = 8.2e7
     omega_rad_s: float = 3.2e-5
     g_m_s2: float = 9.8
@@ -158,7 +158,7 @@ class Config:
 
     # Phi -> temperature -> intensity (emission layer)
     # emission_temp_mode:
-    #   "geopotential" (default; matches the MY_SWAMPE paper / Perez-Becker 2013):
+    #   "geopotential" (default; matches the SWAMPE-JAX paper / Perez-Becker 2013):
     #        T = (Phibar + Phi) / R_d,  R_d = 3.78e3 J/kg/K. The model's physical
     #        temperature proxy; verified to recover both timescales (strong signal).
     #   "linear": T = T_ref + Phi / phi_to_T_scale (a tunable toy; T_ref=1000,
@@ -866,7 +866,7 @@ def build_pipeline(cfg: Config) -> Pipeline:
     )
     likelihood_baseline_mode = str(cfg.likelihood_baseline_mode).strip().lower()
 
-    # ---- MY_SWAMPE forward (terminal Phi) ----
+    # ---- SWAMPE-JAX forward (terminal Phi) ----
     _fast_path_ok = (not cfg.force_rebuild_static) and not (
         cfg.infer_Phibar or cfg.infer_DPhieq or cfg.infer_K6 or cfg.infer_K6Phi
         or cfg.infer_omega or cfg.infer_a_planet or cfg.infer_g
@@ -1675,7 +1675,7 @@ def gpu_config(**overrides: Any) -> Config:
     20-day spin-up, heteroscedastic photon noise, float64, paper temperature mapping.
 
     The SMC mutation kernel is ``jax.vmap``-ed over particles, so the whole swarm
-    (``smc_num_particles``) advances simultaneously on the device. Per the MY_SWAMPE
+    (``smc_num_particles``) advances simultaneously on the device. Per the SWAMPE-JAX
     paper, A100 throughput SATURATES at a few dozen simultaneous trajectories, so
     **N=64 is the efficient sweet spot** — larger swarms (256/512) fit in memory but
     just queue (no throughput gain) and multiply wall-time. The likelihood uses a

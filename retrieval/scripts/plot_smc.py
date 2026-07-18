@@ -4,7 +4,7 @@ plot_smc.py
 
 Plot all results from a completed `run_smc.py` run.
 
-This script NEVER runs MY_SWAMPE and NEVER runs inference. It only reads saved outputs from
+This script NEVER runs SWAMPE-JAX and NEVER runs inference. It only reads saved outputs from
 OUT_DIR and creates plots under OUT_DIR/plots.
 
 This version adds much more defensive validation + verbose, terminal-friendly logging to help
@@ -1381,7 +1381,7 @@ def plot_maps() -> None:
                     cmap="inferno", cbar_label="T [K]")
         _pcolormesh(post_axs[2], lon, lat, _nonneg(maps["I_post"], "I_post"), intensity_title("I posterior median"),
                     cmap="magma", cbar_label="I [arb.]")
-    fig.suptitle("Terminal MY_SWAMPE maps and band intensity ($+$ marks the substellar point)")
+    fig.suptitle("Terminal SWAMPE-JAX maps and band intensity ($+$ marks the substellar point)")
     path = PLOTS_DIR / "maps.png"
     fig.savefig(path)
     plt.close(fig)

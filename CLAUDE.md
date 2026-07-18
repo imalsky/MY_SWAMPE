@@ -33,7 +33,7 @@ It is **not** shipped inside this package.
 ## 2. Repo layout
 
 ```
-MY_SWAMPE/
+SWAMPE-JAX/
 ├── CLAUDE.md                    # this file
 ├── README.md                    # user-facing docs, install, examples
 ├── CONTRIBUTING.md              # contribution conventions
@@ -70,7 +70,7 @@ MY_SWAMPE/
 │   ├── benchmark_new_numerics.py     # opt-in RAW/semi-implicit modes vs locked defaults (readme §9)
 │   ├── benchmark_scan.py             # forward-scan wall-clock microbenchmark
 │   └── generate_reference_parity_fixtures.py  # regenerates unit_tests/fixtures/*.npz
-├── retrieval/                   # downstream app: differentiable MY_SWAMPE -> phase-curve retrieval
+├── retrieval/                   # downstream app: differentiable SWAMPE-JAX -> phase-curve retrieval
 │   ├── run_smc.py                    # BlackJAX adaptive tempered SMC (gradient-informed kernel)
 │   ├── plot_smc.py                   # posterior / diagnostics plots
 │   ├── run.sh                        # SLURM launcher
@@ -295,7 +295,7 @@ parity quirk, also extend `test_parity_quirks.py`.
 
 - **The save filename arithmetic in `compute_timestamp(units, t, dt)` is
   multiplicative**, so SWAMPE's swapped-arg call `(units, dt, t)` happens to
-  produce the right filename. MY_SWAMPE fixed the call site (`model.py`
+  produce the right filename. SWAMPE-JAX fixed the call site (`model.py`
   calls it as `(units, t, dt)`). Don't "fix" the function signature back —
   it would break the SWAMPE-shipped pickle filenames.
 - **The `Phi+Phibar` denominator in `forcing.Rfun` is guarded** with
@@ -381,7 +381,7 @@ A PyTorch-based emulator that learns a **direct-jump** transition
 operator on the sphere:
 
 ```
-(state0, params, transition_days)  →  state1  ≈  MY_SWAMPE(state0, params, transition_days)
+(state0, params, transition_days)  →  state1  ≈  SWAMPE-JAX(state0, params, transition_days)
 ```
 
 - Architecture: a Spherical Fourier Neural Operator (SFNO) from
@@ -390,7 +390,7 @@ operator on the sphere:
   conditioning vector into each SFNO stage as per-channel scale/shift.
   Optional fixed big-skip via `residual_prediction=True`.
 - State channels: `("Phi", "U", "V", "eta", "delta")` (the same five
-  fields MY_SWAMPE exposes as `last_state.{Phi,U,V,eta,delta}_curr`).
+  fields SWAMPE-JAX exposes as `last_state.{Phi,U,V,eta,delta}_curr`).
 - Conditioning: 7 physical scalars
   `(a_m, omega_rad_s, Phibar, DPhieq, taurad_s, taudrag_s, g_m_s2)`
   plus a derived `log10_transition_days` channel.
@@ -403,7 +403,7 @@ operator on the sphere:
 Both stages use the same `config.json`. CLI:
 
 ```bash
-# Stage 1: data generation (calls MY_SWAMPE under the hood)
+# Stage 1: data generation (calls SWAMPE-JAX under the hood)
 python -m gcmulator --gen --config config.json
 # → writes data/raw_*/sim_NNNNNN.npy + manifest.json
 
@@ -445,13 +445,13 @@ contract in `my_swampe/__init__.py`, mirror the change in
 ### 12.4 Geometry contract
 
 `gcmulator` stores all on-disk and in-memory state tensors in the
-canonical orientation `(north→south, 0→2π)`. MY_SWAMPE returns
+canonical orientation `(north→south, 0→2π)`. SWAMPE-JAX returns
 `(south→north, -π→π)` from `state_var_init`. The bridge lives in
 `gcmulator/src/gcmulator/geometry.py`:
 `apply_geometry_state(state, flip_latitude_to_north_south=True,
 roll_longitude_to_0_2pi=True)`.
 
-If you change the latitude or longitude convention in MY_SWAMPE
+If you change the latitude or longitude convention in SWAMPE-JAX
 (`build_lambdas`, `gauss_legendre`, or `state_var_init`), the
 emulator's geometry module will silently produce a permuted state
 tensor and training will diverge in subtle ways. **Don't change those
@@ -459,16 +459,16 @@ conventions without coordinating.**
 
 ### 12.5 Internal-fixed parameters
 
-`K6` and `K6Phi` are MY_SWAMPE-side hyperdiffusion controls. The
+`K6` and `K6Phi` are SWAMPE-JAX-side hyperdiffusion controls. The
 emulator deliberately holds them fixed across all sims:
 
 ```python
 INTERNAL_FIXED_K6 = 1.24e33     # gcmulator/sampling.py
-INTERNAL_FIXED_K6PHI = None     # → MY_SWAMPE inherits K6 for Phi diffusion
+INTERNAL_FIXED_K6PHI = None     # → SWAMPE-JAX inherits K6 for Phi diffusion
 ```
 
 They are **not** part of the conditioning vector. If you change the
-default `K6` in MY_SWAMPE, you change the trained emulator's
+default `K6` in SWAMPE-JAX, you change the trained emulator's
 out-of-distribution behavior — bump the dataset version
 (`config.paths.dataset_dir`) so a fresh model gets trained.
 
@@ -495,8 +495,8 @@ gcmulator/
 │   └── run_surrogate_nss.py     # standalone inference benchmark
 ├── extra/
 │   ├── pytorch_export.py        # checkpoint → TorchScript with embedded normalization
-│   ├── predictions.py           # offline rollout / comparison vs MY_SWAMPE
-│   ├── swampe_parity_compare.py # emulator vs MY_SWAMPE field comparison
+│   ├── predictions.py           # offline rollout / comparison vs SWAMPE-JAX
+│   ├── swampe_parity_compare.py # emulator vs SWAMPE-JAX field comparison
 │   ├── batch_size_benchmark.py
 │   └── training_log.py
 └── unit_tests/                  # 64 tests across 13 files
@@ -504,14 +504,14 @@ gcmulator/
 
 ### 12.7 Tests in the sibling repo
 
-`gcmulator` ships its own pytest suite (no shared markers with MY_SWAMPE).
+`gcmulator` ships its own pytest suite (no shared markers with SWAMPE-JAX).
 The 64 tests cover: config schema validation, geometry bridges, sampling
 catalogs, normalization round-trip, training scheduler/logging,
 modeling shapes (FiLM, big-skip, channel-weighted SphereLoss), and the
 TorchScript retrieval contract.
 
 `gcmulator/unit_tests/conftest.py` adds *both* `gcmulator/src/` and
-`MY_SWAMPE/src/` to `sys.path`, so emulator tests run against this
+`SWAMPE-JAX/src/` to `sys.path`, so emulator tests run against this
 working tree's `my_swampe` (not the installed one). Keep that in mind
 when running the emulator suite from a clean checkout — break this
 project's `src/` and `gcmulator` tests will fail too.
@@ -548,8 +548,8 @@ that's a contract violation — flag it.
   `Phi_curr, U_curr, V_curr, eta_curr, delta_curr,
   Phi_prev, eta_prev, delta_prev` directly from `last_state`. Renaming
   any of these fields breaks `gcmulator` checkpoint extraction.
-- **Don't change geometry conventions** in MY_SWAMPE without updating
-  `gcmulator.geometry`. The emulator has no test for "MY_SWAMPE returned
+- **Don't change geometry conventions** in SWAMPE-JAX without updating
+  `gcmulator.geometry`. The emulator has no test for "SWAMPE-JAX returned
   the wrong orientation" — it would just train on a transposed sphere.
 - **Don't tighten `K6` / `K6Phi` defaults** without bumping the
   emulator dataset name. The trained model has implicitly memorized the

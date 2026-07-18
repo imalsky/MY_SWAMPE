@@ -17,7 +17,7 @@
 #SBATCH --mail-user=isaac.n.malsky@jpl.nasa.gov
 
 # =============================================================================
-# Full GPU retrieval: differentiable MY_SWAMPE -> phase-curve -> BlackJAX adaptive
+# Full GPU retrieval: differentiable SWAMPE-JAX -> phase-curve -> BlackJAX adaptive
 # tempered SMC (gradient-informed MALA kernel). Submit with `sbatch run.sh` on
 # the JPL edge GPU cluster. The 'gpu' preset runs a large 512-particle swarm
 # (vmapped -> the whole swarm advances at once on the A100/H100), 20-day spin-up,
@@ -32,7 +32,7 @@
 #  * Single process (no srun fan-out / MPI): one GPU, one Python process.
 #
 # Configurable via env:
-#   CONDA_ENV          conda env to activate            (default: MY_SWAMPE)
+#   CONDA_ENV          conda env to activate            (default: swamp)
 #   JAX_VERSION        jax/jaxlib version to install     (default: 0.6.2, matches
 #                      the jaxoplanet 0.1.0 the code is validated against)
 #   MY_SWAMPE_RETRIEVAL_PRESET     fast | gpu | prod         (default: gpu)
@@ -47,9 +47,9 @@ echo "======================================================"
 echo "  Job info:  host=$(hostname)  SLURM_JOB_ID=${SLURM_JOB_ID:-<none>}  $(date)"
 echo "======================================================"
 
-# ── Resolve layout: this script is MY_SWAMPE/retrieval/scripts/run.sh ──
+# ── Resolve layout: this script is SWAMPE-JAX/retrieval/scripts/run.sh ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # retrieval/scripts
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"                 # MY_SWAMPE
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"                 # SWAMPE-JAX
 cd "$SCRIPT_DIR"   # run_smc.py writes to retrieval/data/ and figures to retrieval/plots/
 
 # ── Conda env (auto-created if missing) ────────────────

@@ -22,7 +22,7 @@
 # conda env: no NAS proxy, no --user/PYTHONUSERBASE installs, plain `conda
 # activate` + `pip install` straight into the env (same as run.sh).
 #
-#   cd MY_SWAMPE && sbatch retrieval/wasp_43b_test/run_slurm_wasp43b.sh
+#   cd SWAMPE-JAX && sbatch retrieval/wasp_43b_test/run_slurm_wasp43b.sh
 #
 # LIVE PROGRESS: SLURM's own -o/-e files update live, but this also streams
 # everything to a dedicated log you can tail the same way as the PBS run:
@@ -45,7 +45,7 @@ set -euo pipefail
 # --- locate the repo (this script lives in retrieval/wasp_43b_test/) --------
 if [ -n "${PROJECT_ROOT:-}" ]; then :
 elif [ -n "${SLURM_SUBMIT_DIR:-}" ] && [ -d "${SLURM_SUBMIT_DIR}/retrieval/wasp_43b_test" ]; then
-  PROJECT_ROOT="${SLURM_SUBMIT_DIR}"                                    # submitted from MY_SWAMPE/
+  PROJECT_ROOT="${SLURM_SUBMIT_DIR}"                                    # submitted from SWAMPE-JAX/
 elif [ -n "${SLURM_SUBMIT_DIR:-}" ] \
      && [ "$(basename "${SLURM_SUBMIT_DIR}")" = "wasp_43b_test" ]; then
   PROJECT_ROOT="$(cd -- "${SLURM_SUBMIT_DIR}/../.." && pwd -P)"         # submitted from retrieval/wasp_43b_test/
