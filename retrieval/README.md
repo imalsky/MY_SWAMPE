@@ -55,7 +55,7 @@ retrieval/
 Use the project conda env (has `jaxoplanet` 0.1.0 + `blackjax` 1.3):
 
 ```bash
-conda activate MY_SWAMPE
+conda activate MY_SWAMP
 ```
 
 `pipeline.py` prepends this working tree's `src/` to `sys.path`, so it always uses
@@ -327,7 +327,7 @@ diagnostics, maps, disk renders). All of it is regenerable and gitignored.
 
 ## Tests
 
-`scripts/tests/` (run with `conda run -n MY_SWAMPE python -m pytest tests -q`
+`scripts/tests/` (run with `conda run -n MY_SWAMP python -m pytest tests -q`
 from `retrieval/scripts/`):
 
 - `test_pipeline.py` — config validation, registry, forward parity vs a direct

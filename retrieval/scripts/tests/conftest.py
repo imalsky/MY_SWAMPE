@@ -7,7 +7,7 @@ package + retrieval dirs to ``sys.path`` (mirroring my_swampe's own conftest).
 
 Run from the repo root in the project conda env (jaxoplanet + blackjax):
 
-    conda run -n MY_SWAMPE python -m pytest retrieval/tests -q
+    conda run -n MY_SWAMP python -m pytest retrieval/tests -q
 """
 
 import os

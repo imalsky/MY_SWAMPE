@@ -6,8 +6,8 @@ u-space transform + prior Jacobian, likelihood shape (peaks at truth), the
 custom-VJP gradient vs finite differences, and the expanded-parameter rebuild
 path. A slow marker guards the end-to-end SMC recovery test.
 
-    conda run -n MY_SWAMPE python -m pytest retrieval/tests -q
-    conda run -n MY_SWAMPE python -m pytest retrieval/tests -q -m "not slow"
+    conda run -n MY_SWAMP python -m pytest retrieval/tests -q
+    conda run -n MY_SWAMP python -m pytest retrieval/tests -q -m "not slow"
 """
 
 import math

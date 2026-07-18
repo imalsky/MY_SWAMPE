@@ -14,7 +14,7 @@ level), which removes the star + baseline to first order. SWAMPE-JAX curves are 
 pipeline forward model at a few (tau_rad, tau_drag) values with the pilot
 config's fpfs placeholder; they illustrate the model family, not a fit.
 
-Run inside the SWAMPE-JAX conda env (needs jax + jaxoplanet for the model
+Run inside the MY_SWAMP conda env (needs jax + jaxoplanet for the model
 overlay; pass --no-model to skip it and only use numpy/h5py).
 """
 
