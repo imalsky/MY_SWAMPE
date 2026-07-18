@@ -189,7 +189,7 @@ def _save_field_comparison_plot(
     colorbars the same height as their panel and essentially zero pad.
     """
     fields = ("eta", "delta", "Phi", "U", "V")
-    # Physical units per field, for the value (SWAMPE / MY_SWAMPE) colorbars.
+    # Physical units per field, for the value (SWAMPE / SWAMPE-JAX) colorbars.
     field_units = {
         "eta": r"s$^{-1}$",
         "delta": r"s$^{-1}$",
@@ -288,9 +288,9 @@ def _save_field_comparison_plot(
         _cbar(pct_im, pct_ax, label="percent error [%]")
 
     axes[0, 0].set_title("SWAMPE")
-    axes[0, 1].set_title("MY_SWAMPE")
+    axes[0, 1].set_title("SWAMPE-JAX")
     axes[0, 2].set_title("Percent error")
-    fig.suptitle(f"SWAMPE vs MY_SWAMPE field comparison ({actual_days:.0f} days)",
+    fig.suptitle(f"SWAMPE vs SWAMPE-JAX field comparison ({actual_days:.0f} days)",
                  fontsize=22, y=0.985)
     fig.subplots_adjust(left=0.03, right=0.97, top=0.93, bottom=0.02, wspace=0.5, hspace=0.1)
     fig.savefig(out_path, dpi=180, bbox_inches="tight")
@@ -337,7 +337,7 @@ def _run_reference(kwargs: Dict[str, Any], final_step: int) -> tuple[Dict[str, n
 
 
 def _run_my_swampe(kwargs: Dict[str, Any]) -> tuple[Dict[str, np.ndarray], float]:
-    """Run the MY_SWAMPE model under the configured settings."""
+    """Run the SWAMPE-JAX model under the configured settings."""
     if str(ROOT / "src") not in sys.path:
         sys.path.insert(0, str(ROOT / "src"))
 
@@ -449,7 +449,7 @@ def main() -> None:
     )
 
     summary = {
-        "comparison": "SWAMPE vs MY_SWAMPE long-run field comparison",
+        "comparison": "SWAMPE vs SWAMPE-JAX long-run field comparison",
         "output_dir": _display_path(out_dir),
         "plot_png": _display_path(plot_path),
         "days_requested": float(args.days),
@@ -488,7 +488,7 @@ def main() -> None:
     print()
     print("Runtime")
     print(f"  SWAMPE:   {ref_seconds:.3f} s")
-    print(f"  MY_SWAMPE: {my_seconds:.3f} s")
+    print(f"  SWAMPE-JAX: {my_seconds:.3f} s")
     print()
     print("Field comparison errors")
     for field in ("eta", "delta", "Phi", "U", "V"):

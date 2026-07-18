@@ -1,4 +1,4 @@
-# Differentiable MY_SWAMPE → phase-curve retrieval
+# Differentiable SWAMPE-JAX → phase-curve retrieval
 
 **This README is the single human-maintained document for the retrieval suite.**
 Every production choice — numerics, sampler, data preparation, priors, budget —
@@ -14,7 +14,7 @@ timescales** (radiative `tau_rad`, drag `tau_drag`, and optionally other GCM
 scalars) from a noisy thermal phase curve:
 
 ```
-parameters → MY_SWAMPE (my_swampe) terminal Φ → brightness-temperature map → intensity map
+parameters → SWAMPE-JAX (my_swampe) terminal Φ → brightness-temperature map → intensity map
            → starry/jaxoplanet spherical-harmonic phase curve → Gaussian likelihood
 ```
 
@@ -82,7 +82,7 @@ python -m pytest tests -q
 ```
 
 No local GPU/conda env? Open `scripts/full_retrieval.ipynb` in Colab:
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/imalsky/MY_SWAMPE/blob/master/retrieval/scripts/full_retrieval.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/imalsky/SWAMPE-JAX/blob/master/retrieval/scripts/full_retrieval.ipynb)
 
 Presets and overrides (env vars, read before JAX import):
 `MY_SWAMPE_RETRIEVAL_PRESET` = `fast` | `gpu` | `prod`; `MY_SWAMPE_RETRIEVAL_USE_X64` =
@@ -172,7 +172,7 @@ completed and produced a good fit, but had three defects:
 - **Scheme: `semi_implicit=true`, `dt=600 s`, default `K6=1.24e33`,
   `raw_filter=true` (`williams_alpha=0.53`), filter strength `alpha=0.05`,
   `si_alpha=0.5`.** The semi-implicit gravity-wave leapfrog + exponential
-  hyperdiffusion (MY_SWAMPE readme §9, CLAUDE.md §13.3) removes the gravity-wave
+  hyperdiffusion (SWAMPE-JAX readme §9, CLAUDE.md §13.3) removes the gravity-wave
   dt ceiling that forced the pilot's `dt=120`/`K6=5e33`; ~6× cheaper per
   likelihood evaluation (5× fewer steps, ~17% cheaper steps).
   - **Corner validation** (2026-07-02, `scripts/benchmark_new_numerics.py`
@@ -254,7 +254,7 @@ checkpointing bounds any overrun loss.
   additionally fit an exponential ramp + detector decorrelation. The inferred
   noise inflation absorbs (does not model) residual red noise.
 - The stellar spectrum is approximated as a blackbody in the band weights.
-- The planet map is the terminal MY_SWAMPE snapshot, assumed static in the
+- The planet map is the terminal SWAMPE-JAX snapshot, assumed static in the
   corotating frame over the 26.5 h visit.
 - Results are conditioned on the one-layer shallow-water forward model and the
   semi-implicit scheme (see above); expect σ-inflation > 1 even after the

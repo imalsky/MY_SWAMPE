@@ -1,5 +1,5 @@
 {
-  "comparison": "SWAMPE vs MY_SWAMPE long-run field comparison",
+  "comparison": "SWAMPE vs SWAMPE-JAX long-run field comparison",
   "days_actual": 100.0,
   "days_requested": 100.0,
   "dt_seconds": 120.0,

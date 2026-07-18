@@ -1,4 +1,4 @@
-# SWAMPE vs MY_SWAMPE — speed benchmark
+# SWAMPE vs SWAMPE-JAX — speed benchmark
 
 Combined record of the CPU and GPU timing for the paper's "Speed (CPU and GPU)" section.
 **Everything below is a single, consistent 10-day window** -- CPU and GPU, single-trajectory
@@ -23,8 +23,8 @@ modal filter on. 10-day run = 7,199 steps.
 | Implementation        | Device                 | 10-day total | speedup vs SWAMPE |
 |------------------------|------------------------|-------------:|-------------------:|
 | SWAMPE (NumPy)         | CPU (1 core)           | 817.353 s    | 1.0x |
-| MY_SWAMPE (my_swampe)  | CPU (1 core)           | 25.220 s     | 32.4x |
-| MY_SWAMPE (my_swampe)  | GPU (NVIDIA A100-40GB) | 1.1535 s     | 708.6x |
+| SWAMPE-JAX (my_swampe) | CPU (1 core)           | 25.220 s     | 32.4x |
+| SWAMPE-JAX (my_swampe) | GPU (NVIDIA A100-40GB) | 1.1535 s     | 708.6x |
 
 - CPU timings: Apple M3 Pro, single core. GPU timing: Colab `NVIDIA A100-SXM4-40GB`, float64.
 - **my_swampe GPU vs my_swampe CPU** (same code, cross-device): **21.9x**.
@@ -77,7 +77,7 @@ subsection. If you regenerate any of the data above, update both this file and t
 text together -- see `paper/benchmark_data/README.md` SS"When you add a new benchmark number".
 
 - "A ten-day, M=42 forced integration... takes about **817 s** (~14 min) for SWAMPE."
-- "...the same run for MY_SWAMPE takes **25 s** on a CPU and about **1.15 s** on a GPU."
+- "...the same run for SWAMPE-JAX takes **25 s** on a CPU and about **1.15 s** on a GPU."
 - "This is roughly a **32x** (CPU) and **710x** (GPU) speedup respectively."
 - "...resulting in a speedup per simulation of approximately **6,330x** compared to the
   original SWAMPE."

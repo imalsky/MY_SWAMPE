@@ -60,7 +60,7 @@ def main(
     # JAX-only extensions (kept keyword-only to avoid disturbing legacy call sites)
     K6Phi: Optional[float] = None,
 ):
-    """Run MY_SWAMPE with the legacy numpy `main_function.main(...)` signature.
+    """Run SWAMPE-JAX with the legacy numpy `main_function.main(...)` signature.
 
     Parameters
     ----------
