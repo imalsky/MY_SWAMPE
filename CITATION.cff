@@ -1,9 +1,9 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below, together with the original SWAMPE model it is a JAX port of."
-title: "MY_SWAMPE: A differentiable JAX implementation of the SWAMPE shallow-water model for exoplanet atmospheres"
+title: "SWAMPE-JAX: A differentiable JAX implementation of the SWAMPE shallow-water model for exoplanet atmospheres"
 type: software
 version: 0.1.34
-repository-code: "https://github.com/imalsky/MY_SWAMPE"
+repository-code: "https://github.com/imalsky/SWAMPE-JAX"
 license: BSD-3-Clause
 authors:
   - given-names: Isaac
@@ -17,7 +17,7 @@ authors:
   - given-names: Ekaterina
     family-names: Landgren
     orcid: "https://orcid.org/0000-0001-6029-5216"
-    affiliation: "Cooperative Institute for Research in Environmental Sciences, University of Colorado Boulder"
+    affiliation: "Department of Environmental Social Sciences, Stanford Doerr School of Sustainability, Stanford University"
 references:
   - type: article
     title: "SWAMPE: A Shallow-Water Atmospheric Model in Python for Exoplanets"

@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "my-swampe"
+name = "swampe-jax"
 dynamic = ["version"]
-description = "MY_SWAMPE: JAX port + reference implementation of SWAMPE"
+description = "SWAMPE-JAX: a differentiable JAX implementation of the SWAMPE shallow-water model for exoplanet atmospheres"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "BSD-3-Clause"
@@ -31,9 +31,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/imalsky/MY_SWAMPE"
-Repository = "https://github.com/imalsky/MY_SWAMPE"
-"Bug Tracker" = "https://github.com/imalsky/MY_SWAMPE/issues"
+Homepage = "https://github.com/imalsky/SWAMPE-JAX"
+Repository = "https://github.com/imalsky/SWAMPE-JAX"
+"Bug Tracker" = "https://github.com/imalsky/SWAMPE-JAX/issues"
 
 [project.optional-dependencies]
 dev = [
@@ -45,7 +45,7 @@ dev = [
 ]
 
 [project.scripts]
-my-swampe = "my_swampe.main_function:cli_main"
+swampe-jax = "my_swampe.main_function:cli_main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

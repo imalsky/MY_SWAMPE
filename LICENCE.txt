@@ -1,7 +1,7 @@
 BSD 3-Clause License
 
 Copyright (c) 2022, Ekaterina Landgren (original SWAMPE)
-Copyright (c) 2024-2026, Isaac Malsky (MY_SWAMPE JAX port)
+Copyright (c) 2024-2026, Isaac Malsky (SWAMPE-JAX)
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

@@ -1,4 +1,4 @@
-# MY_SWAMPE (`my_swampe`)
+# SWAMPE-JAX (`my_swampe`)
 
 A JAX rewrite of the SWAMPE spectral shallow‑water model on the sphere. The
 numerical core runs inside `jax.lax.scan`, so the forward simulation is
@@ -24,7 +24,7 @@ Document version: 2026-06-30
 
 ## Citation
 
-If you use `my_swampe` in your research, please cite the accompanying software
+If you use SWAMPE-JAX in your research, please cite the accompanying software
 paper (submitted to the Journal of Open Source Software; the LaTeX source
 lives in [`paper/paper.tex`](paper/paper.tex)) together with the original SWAMPE
 model on which this port is based:
@@ -58,7 +58,7 @@ model on which this port is based:
 
 ## 1. What This Code Does
 
-MY_SWAMPE implements a single‑layer global spectral shallow‑water model on the sphere using triangular truncation (M = N), Gaussian quadrature in latitude, and FFT in longitude. The model advances:
+SWAMPE-JAX implements a single‑layer global spectral shallow‑water model on the sphere using triangular truncation (M = N), Gaussian quadrature in latitude, and FFT in longitude. The model advances:
 
 - `eta`: absolute vorticity (relative vorticity plus Coriolis)
 - `delta`: divergence
@@ -80,12 +80,16 @@ The model supports:
 
 ## 2. Package Layout
 
-This repository uses a `src/` layout. The import name is `my_swampe`, but the source lives under `src/my_swampe/`.
+This repository uses a `src/` layout. The distribution is published as
+`swampe-jax` (so you `pip install swampe-jax`), while the import name is
+`my_swampe` and the source lives under `src/my_swampe/`. (A hyphenated
+distribution name with a snake_case import is standard Python practice, as
+with `scikit-learn` / `sklearn`.)
 
 Repository (high level):
 
 ```
-MY_SWAMPE/
+SWAMPE-JAX/
 ├── README.md                        # this file (user-facing)
 ├── CLAUDE.md                        # in-repo developer briefing (locked parity, AD rules, validation)
 ├── CONTRIBUTING.md                  # contribution conventions
@@ -122,7 +126,7 @@ MY_SWAMPE/
 ├── scripts/                         # General-purpose, NOT paper-specific (not pytest-collected)
 │   ├── benchmark_scan.py                # forward-scan wall-clock microbenchmark
 │   └── generate_reference_parity_fixtures.py
-├── retrieval/                       # Differentiable MY_SWAMPE -> phase-curve retrieval (BlackJAX SMC)
+├── retrieval/                       # Differentiable SWAMPE-JAX -> phase-curve retrieval (BlackJAX SMC)
 ├── data/                            # Regenerable .npz data (gitignored)
 └── paper/                           # JOSS paper -- self-contained: text, figures, raw data, generators
     ├── paper.tex, paper.bib, Makefile, README.md, speed_benchmark.md
@@ -181,16 +185,16 @@ Recommended (after installing, from anywhere on your PATH):
 
 ```bash
 # Forced mode (test=0 maps internally to test=None)
-my-swampe --M 42 --dt 600 --tmax 200 --test 0 --no-plot
+swampe-jax --M 42 --dt 600 --tmax 200 --test 0 --no-plot
 
 # Idealized test case 1
-my-swampe --M 42 --dt 600 --tmax 200 --test 1 --no-plot
+swampe-jax --M 42 --dt 600 --tmax 200 --test 1 --no-plot
 
 # Idealized test case 2
-my-swampe --M 42 --dt 600 --tmax 200 --test 2 --no-plot
+swampe-jax --M 42 --dt 600 --tmax 200 --test 2 --no-plot
 ```
 
-Alternative (module execution). This works once the package is installed, but may emit a Python `RuntimeWarning` because `src/my_swampe/__init__.py` imports `main_function` eagerly; prefer `my-swampe` for a clean CLI run:
+Alternative (module execution). This works once the package is installed, but may emit a Python `RuntimeWarning` because `src/my_swampe/__init__.py` imports `main_function` eagerly; prefer `swampe-jax` for a clean CLI run:
 
 ```bash
 python -m my_swampe.main_function --M 42 --dt 600 --tmax 200 --test 0 --no-plot
@@ -886,7 +890,7 @@ The test suite lives under `unit_tests/` and covers:
 
 ---
 
-### 14b. SWAMPE vs. MY_SWAMPE Long-Run Parity Check (`compare_long_run_parity.py`)
+### 14b. SWAMPE vs. SWAMPE-JAX Long-Run Parity Check (`compare_long_run_parity.py`)
 
 This is the main tool for checking that `my_swampe` stays numerically close to the original NumPy SWAMPE reference over long integrations. It is not part of the pytest suite because a useful horizon (100 days) can take several minutes. It also doubles as the source of the JOSS paper's parity figure (100-day window) and CPU speed numbers (10-day window) -- see `paper/benchmark_data/README.md`. It lives in `paper/scripts/` (paper-specific tooling is self-contained under `paper/`; see CLAUDE.md SS2).
 
@@ -900,8 +904,8 @@ What it does:
 - Runs both `SWAMPE` (NumPy) and `my_swampe` (JAX) with the same forced-mode parameter set.
 - Prints per-field error statistics (relative L2, max fractional, RMS fractional, max absolute) to the console.
 - Writes `summary.json` with the full error breakdown and run parameters.
-- Saves `comparison_fields.npz` with the SWAMPE fields, MY_SWAMPE fields, and absolute error arrays for `eta`, `delta`, `Phi`, `U`, and `V`.
-- Generates `field_comparison.png` — a grid of side-by-side maps showing the SWAMPE fields, MY_SWAMPE fields, and signed fractional differences for each field.
+- Saves `comparison_fields.npz` with the SWAMPE fields, SWAMPE-JAX fields, and absolute error arrays for `eta`, `delta`, `Phi`, `U`, and `V`.
+- Generates `field_comparison.png` — a grid of side-by-side maps showing the SWAMPE fields, SWAMPE-JAX fields, and signed fractional differences for each field.
 
 All output lands in `paper/figures/long_run_parity_outputs/forced_default_100d/` by default.
 
@@ -918,7 +922,7 @@ python paper/scripts/compare_long_run_parity.py --days 50 --test 1
 python paper/scripts/compare_long_run_parity.py --days 100 --out-dir /tmp/parity_check
 ```
 
-The script requires that the SWAMPE reference package is importable. It looks for it at `../SWAMPE` relative to the `MY_SWAMPE` root.
+The script requires that the SWAMPE reference package is importable. It looks for it at `../SWAMPE` relative to the `SWAMPE-JAX` root.
 
 ---
 
