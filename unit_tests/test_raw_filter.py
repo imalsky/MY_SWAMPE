@@ -1,5 +1,5 @@
 # ruff: noqa: E741
-"""Tests for the opt-in Robert–Asselin–Williams (RAW) filter (CLAUDE.md 13.2).
+"""Tests for the opt-in Robert–Asselin–Williams (RAW) filter (DEVELOPMENT.md 13.2).
 
 Contract under test:
 - ``raw_filter=False`` (default) is the locked classic-RA behavior.

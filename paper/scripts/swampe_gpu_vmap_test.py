@@ -148,7 +148,7 @@ def main() -> None:
 
     # build_static does host-side numpy on the Legendre basis, so it must run
     # CONCRETELY once (under jax.vmap it would np.asarray a tracer). One plain
-    # call populates an lru_cache the vmap'd version reuses (CLAUDE.md S5).
+    # call populates an lru_cache the vmap'd version reuses (DEVELOPMENT.md S5).
     my_run(tmax=8, **config)["last_state"].Phi_curr.block_until_ready()
 
     print(f"jax {jax.__version__}  precision={args.precision}  x64={jax.config.read('jax_enable_x64')}")

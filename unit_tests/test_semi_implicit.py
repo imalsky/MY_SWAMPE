@@ -1,5 +1,5 @@
 # ruff: noqa: E741
-"""Tests for the opt-in semi-implicit gravity-wave scheme (CLAUDE.md 13.3).
+"""Tests for the opt-in semi-implicit gravity-wave scheme (DEVELOPMENT.md 13.3).
 
 Contract under test:
 - ``semi_implicit=False`` (default) leaves the locked modified-Euler path
@@ -83,7 +83,7 @@ def test_semi_implicit_equilibrium_is_dt_insensitive():
     # (DPhieq/Phibar > 1) the nightside-collapse nonlinearity caps dt near the
     # explicit value regardless of scheme. (2) The *forced transient*
     # trajectory is not comparable to modified-Euler at any dt — the locked
-    # SWAMPE quirks (CLAUDE.md section 3, items 1-3) give the forced
+    # SWAMPE quirks (DEVELOPMENT.md section 3, items 1-3) give the forced
     # modified-Euler scheme O(1)-different effective tendencies, and the two
     # schemes settle to equilibria that differ by a few percent (identical
     # hot-spot offset, ~5% day-night amplitude). Comparisons against the

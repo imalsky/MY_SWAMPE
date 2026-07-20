@@ -15,10 +15,9 @@ explicit initial conditions.
 - **Differentiable**: `jax.grad`, `jax.jvp`, `jax.jit`, `jax.vmap` work on
   the scan core out of the box.
 
-Working on this codebase as an AI assistant or human contributor? Read
-[`CLAUDE.md`](CLAUDE.md) first — it's the short, in-repo developer briefing
-covering the locked parity contract, differentiability rules, validation
-commands, and common pitfalls.
+Working on this codebase? Read [`DEVELOPMENT.md`](DEVELOPMENT.md) first — it's
+the short, in-repo developer briefing covering the locked parity contract,
+differentiability rules, validation commands, and common pitfalls.
 
 Document version: 2026-06-30
 
@@ -91,7 +90,7 @@ Repository (high level):
 ```
 SWAMPE-JAX/
 ├── README.md                        # this file (user-facing)
-├── CLAUDE.md                        # in-repo developer briefing (locked parity, AD rules, validation)
+├── DEVELOPMENT.md                   # in-repo developer briefing (locked parity, AD rules, validation)
 ├── CONTRIBUTING.md                  # contribution conventions
 ├── LICENCE.txt                      # BSD-3-Clause
 ├── pyproject.toml                   # build metadata, deps, ruff/pytest config
@@ -551,7 +550,7 @@ Differences can arise due to:
   (negligible at our supported `M` range).
 
 The full enumerated parity contract — including the historical SWAMPE
-quirks deliberately reproduced — lives in [`CLAUDE.md`](CLAUDE.md) §3.
+quirks deliberately reproduced — lives in [`DEVELOPMENT.md`](DEVELOPMENT.md) §3.
 
 ---
 
@@ -569,7 +568,7 @@ The high-level numerical method preserved:
 
 For the full enumerated list of historical quirks (e.g., the modified-Euler
 delta tendency that uses `Bm+Fm` even in its unforced branch), see
-[`CLAUDE.md`](CLAUDE.md) §3.
+[`DEVELOPMENT.md`](DEVELOPMENT.md) §3.
 
 ---
 
@@ -631,7 +630,7 @@ cost/memory proportionally.
   locked default. Incompatible with `expflag=True`.
 - In this mode the Robert–Asselin filter is also applied to the spectral
   (Fourier) carries — the leapfrog scheme reads them as its n−1 base, so
-  the locked default's deliberate filter desync (CLAUDE.md §3 item 10)
+  the locked default's deliberate filter desync (DEVELOPMENT.md §3 item 10)
   would corrupt it.
 - `si_alpha` (implicitness; JAX-traced, differentiable) can be raised
   slightly above 0.5 to damp gravity-wave noise at very large `dt`.
@@ -642,7 +641,7 @@ cost/memory proportionally.
   dt-converged to ~1e-5 from `dt=120` to `2400`. Against the explicit
   production reference the semi-implicit equilibrium has an identical
   hot-spot offset and a ~4.6% smaller day-night amplitude (a fixed
-  scheme-level difference from the locked forced-mode quirks, CLAUDE.md §3
+  scheme-level difference from the locked forced-mode quirks, DEVELOPMENT.md §3
   items 1–3) — so use one scheme consistently within a retrieval.
 - **Regime limit**: the dt gain shrinks as the day-night contrast
   `DPhieq/Φ̄` approaches/exceeds 1, where nightside thickness collapse
@@ -734,7 +733,7 @@ Non-differentiable aspects include:
   scan structure.
 
 Rules and pitfalls (`float(tracer)` coercions, JIT cache keys, etc.) are
-listed in [`CLAUDE.md`](CLAUDE.md) §5.
+listed in [`DEVELOPMENT.md`](DEVELOPMENT.md) §5.
 
 ---
 
@@ -881,7 +880,7 @@ The test suite lives under `unit_tests/` and covers:
 | `test_static_spectral_params.py` | Grid sizes and Gauss–Legendre nodes for M=42. |
 | `test_transform_stack.py` | Forward/inverse Legendre and FFT round-trips, wind ↔ vorticity/divergence diagnostic. |
 | `test_model_scan_smoke.py` | One end-to-end `run_model_scan` step, finite outputs. |
-| `test_parity_quirks.py` | One test per locked-parity item (see [`CLAUDE.md`](CLAUDE.md) §3). |
+| `test_parity_quirks.py` | One test per locked-parity item (see [`DEVELOPMENT.md`](DEVELOPMENT.md) §3). |
 | `test_parity_reference_regression.py` | Regression against stored reference fixtures (NumPy SWAMPE snapshots). |
 | `test_autodiff.py` | `jax.grad`/`jax.jvp` smoke across 9 scalar parameters; finite-difference cross-check on `DPhieq`; `jax.grad` over a `(J, I)` initial-Phi field. |
 | `test_continuation_roundtrip.py` | `contflag` resume reproduces an explicit-IC restart from the same single-level state. |
@@ -892,7 +891,7 @@ The test suite lives under `unit_tests/` and covers:
 
 ### 14b. SWAMPE vs. SWAMPE-JAX Long-Run Parity Check (`compare_long_run_parity.py`)
 
-This is the main tool for checking that `my_swampe` stays numerically close to the original NumPy SWAMPE reference over long integrations. It is not part of the pytest suite because a useful horizon (100 days) can take several minutes. It also doubles as the source of the JOSS paper's parity figure (100-day window) and CPU speed numbers (10-day window) -- see `paper/benchmark_data/README.md`. It lives in `paper/scripts/` (paper-specific tooling is self-contained under `paper/`; see CLAUDE.md SS2).
+This is the main tool for checking that `my_swampe` stays numerically close to the original NumPy SWAMPE reference over long integrations. It is not part of the pytest suite because a useful horizon (100 days) can take several minutes. It also doubles as the source of the JOSS paper's parity figure (100-day window) and CPU speed numbers (10-day window) -- see `paper/benchmark_data/README.md`. It lives in `paper/scripts/` (paper-specific tooling is self-contained under `paper/`; see DEVELOPMENT.md SS2).
 
 Run it from the repository root:
 
@@ -999,7 +998,7 @@ python scripts/benchmark_scan.py --require-x64
 
 | Topic | Primary locations |
 |---|---|
-| Developer briefing (parity contract, AD rules, validation) | [`CLAUDE.md`](CLAUDE.md) |
+| Developer briefing (parity contract, AD rules, validation) | [`DEVELOPMENT.md`](DEVELOPMENT.md) |
 | Model driver (`run_model*`, `assert_finite_state`, `Static`/`RunFlags`/`State`) | `src/my_swampe/model.py` |
 | CLI / legacy interface | `src/my_swampe/main_function.py` |
 | Spectral transforms | `src/my_swampe/spectral_transform.py` |

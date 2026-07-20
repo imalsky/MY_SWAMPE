@@ -164,7 +164,7 @@ class RunFlags:
     the stepper and diagnostics logic.
 
     Opt-in numerics modes (all defaults preserve reference-SWAMPE behavior
-    bit-for-bit; see CLAUDE.md section 13 and the readme):
+    bit-for-bit; see DEVELOPMENT.md section 13 and the readme):
 
     - ``semi_implicit``: semi-implicit gravity-wave leapfrog + exponential
       hyperdiffusion instead of the modified-Euler scheme. ``si_alpha`` is the
@@ -990,7 +990,7 @@ def _step_once(
 
         if not flags.raw_filter:
             # Classic Robert–Asselin filter: smooth the *_prev carry only.
-            # This is the locked-parity default path (CLAUDE.md section 3, item 10).
+            # This is the locked-parity default path (DEVELOPMENT.md section 3, item 10).
             def apply_ra(_: Any) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
                 """Apply the Robert-Asselin three-level smoothing filter to eta/delta/Phi."""
                 eta_mid = state.eta_curr + alpha * (state.eta_prev - 2.0 * state.eta_curr + neweta)
@@ -1090,7 +1090,7 @@ def _step_once(
             # The semi-implicit leapfrog reads the Fourier prev carry as its
             # n-1 base, so the filter must also act on the Fourier lineage
             # (unlike the locked default, where the spectral carries are
-            # deliberately left unfiltered — CLAUDE.md section 3, item 10 —
+            # deliberately left unfiltered — DEVELOPMENT.md section 3, item 10 —
             # and the modified-Euler scheme never reads them).
             def apply_ra_m(_: Any) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
                 """Classic RA filter on the truncated Fourier coefficients."""
@@ -1106,7 +1106,7 @@ def _step_once(
             etam_mid, deltam_mid, Phim_mid = jax.lax.cond(do_ra, apply_ra_m, no_ra_m, operand=None)
         elif not flags.raw_filter:
             # Locked default: spectral prev carries are the unfiltered current
-            # levels (deliberate desync, CLAUDE.md section 3, item 10).
+            # levels (deliberate desync, DEVELOPMENT.md section 3, item 10).
             etam_mid, deltam_mid, Phim_mid = state.etam_curr, state.deltam_curr, state.Phim_curr
 
         if flags.diagnostics:
@@ -2163,7 +2163,7 @@ def run_model(
             if int(t) % int(savefreq) == 0:
                 # compute_timestamp takes (units, t, dt). SWAMPE's call site passed
                 # (units, dt, t); the multiplicative body made that produce the right
-                # filename anyway. We fixed the call here -- see CLAUDE.md section 9.
+                # filename anyway. We fixed the call here -- see DEVELOPMENT.md section 9.
                 timestamp = continuation.compute_timestamp(timeunits, int(t), dt)
                 continuation.save_data(
                     timestamp,

@@ -15,7 +15,7 @@ so these files are tracked by git with no special-casing needed.
 `.ipynb`) used to live in the top-level `tests/` and `scripts/` directories and were
 invoked via `../tests/...` / `../scripts/...` from `paper/Makefile`. They were moved
 into `paper/scripts/` so that `paper/` is fully self-contained -- a reviewer (or a
-future Claude session) can find the paper, its figures, its raw data, and the exact
+future maintainer) can find the paper, its figures, its raw data, and the exact
 code that produced all three in one place, with nothing to chase outside this
 directory except the installed `my_swampe` package itself and the sibling reference
 repo `../../SWAMPE`. General-purpose package tooling that is *not* paper-specific
@@ -101,7 +101,7 @@ to be discarded.)
    numbers were supposed to change. Don't repeat that.)
 4. If a script changed in a way that affects past numbers (e.g. a different
    `DPhieq` sweep range, a different warmup protocol), say so in this README --
-   future readers (including a future Claude session working on this repo) should
+   future readers (including future maintainers of this repo) should
    be able to tell *why* two numbers in git history differ without re-deriving it
    from the diff alone.
 5. Before running a CPU benchmark, check `uptime` / `ps aux` for unrelated heavy

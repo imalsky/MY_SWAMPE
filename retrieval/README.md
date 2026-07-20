@@ -172,7 +172,7 @@ completed and produced a good fit, but had three defects:
 - **Scheme: `semi_implicit=true`, `dt=600 s`, default `K6=1.24e33`,
   `raw_filter=true` (`williams_alpha=0.53`), filter strength `alpha=0.05`,
   `si_alpha=0.5`.** The semi-implicit gravity-wave leapfrog + exponential
-  hyperdiffusion (SWAMPE-JAX readme §9, CLAUDE.md §13.3) removes the gravity-wave
+  hyperdiffusion (SWAMPE-JAX readme §9, DEVELOPMENT.md §13.3) removes the gravity-wave
   dt ceiling that forced the pilot's `dt=120`/`K6=5e33`; ~6× cheaper per
   likelihood evaluation (5× fewer steps, ~17% cheaper steps).
   - **Corner validation** (2026-07-02, `scripts/benchmark_new_numerics.py`

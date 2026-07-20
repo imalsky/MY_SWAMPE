@@ -130,7 +130,8 @@ figures/
 
 # === Assistant / LLM docs ===
 # Personal-flavor assistant configs and per-user notes are ignored.
-# Project-level CLAUDE.md is committed (see negation at end of file).
+# CLAUDE.md is a local-only pointer to DEVELOPMENT.md (the tracked briefing).
+CLAUDE.md
 .claude/
 .cursor/
 .copilot/
@@ -171,11 +172,10 @@ secrets.*
 *.xdv
 
 # === Negations: explicitly keep these committed ===
-# Project-level Claude guide.
-!CLAUDE.md
 # Parity fixtures generated from reference NumPy SWAMPE.
 !unit_tests/fixtures/*.npz
-# JOSS paper figures + logo. The paper is LaTeX (paper.tex is canonical; no .md).
+# JOSS paper figures + logo. paper.md is the JOSS artifact; paper.tex is the
+# synced LaTeX source for the local PDF build and arXiv.
 # Figure 1 (parity) needs the external reference SWAMPE to regenerate, so the
 # rendered figures are committed; the regenerable .npz data and the .pdf are not.
 !paper/*.png

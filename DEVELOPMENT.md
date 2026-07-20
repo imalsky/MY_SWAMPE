@@ -1,8 +1,8 @@
-# Claude guide for `my_swampe`
+# Developer guide for `my_swampe`
 
-This file is the in-repo briefing for an AI coding assistant working on this
-package. It is short on purpose. If you only read one file before editing
-code, read this one.
+This file is the in-repo briefing for anyone working on this package. It is
+short on purpose. If you only read one file before editing code, read this
+one.
 
 ---
 
@@ -34,7 +34,7 @@ It is **not** shipped inside this package.
 
 ```
 SWAMPE-JAX/
-├── CLAUDE.md                    # this file
+├── DEVELOPMENT.md               # this file
 ├── README.md                    # user-facing docs, install, examples
 ├── CONTRIBUTING.md              # contribution conventions
 ├── LICENCE.txt                  # BSD-3-Clause

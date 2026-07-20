@@ -114,7 +114,7 @@ class Config:
     mixed_precision: bool = False
 
     # Opt-in SWAMPE-JAX numerics modes (defaults preserve the locked SWAMPE-parity
-    # scheme bit-for-bit; see SWAMPE-JAX readme section 9 and CLAUDE.md section 13).
+    # scheme bit-for-bit; see SWAMPE-JAX readme section 9 and DEVELOPMENT.md section 13).
     #   semi_implicit : semi-implicit gravity-wave leapfrog + exponential
     #       hyperdiffusion. Stable at much larger dt in the hot-Jupiter regime
     #       (dt=600 s corner-validated for the WASP-43b prior box with

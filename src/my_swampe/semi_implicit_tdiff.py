@@ -4,7 +4,7 @@
 
 Semi-implicit leapfrog time differencing (Hoskins & Simmons 1975) for the
 spectral shallow-water equations, paired with exponential (integrating-factor)
-hyperdiffusion. This is the opt-in scheme described in CLAUDE.md section 13.3;
+hyperdiffusion. This is the opt-in scheme described in DEVELOPMENT.md section 13.3;
 it is NOT part of the reference-SWAMPE parity contract and shares no historical
 quirks with `modEuler_tdiff` / `explicit_tdiff`.
 
