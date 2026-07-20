@@ -94,11 +94,10 @@ SWAMPE-JAX/
                                         # see paper/benchmark_data/README.md before touching a number
 ```
 
-**The JOSS paper is LaTeX.** `paper/paper.tex` is the canonical, authoritative
-source of the paper — there is no `paper.md`. Build with `cd paper && make`
-(figures regenerate with `make figures`). JOSS's own pipeline ingests Markdown,
-but this project keeps the paper in LaTeX only; a `paper.md` would be generated
-on demand if an upload required it, never maintained as a second source.
+**The JOSS submission artifact is `paper/paper.md`** (JOSS's pipeline ingests
+Markdown). `paper/paper.tex` is kept in sync for the local PDF build and arXiv;
+any text change must be applied to both. Build the LaTeX version with
+`cd paper && make` (figures regenerate with `make figures`).
 
 The driver `model.py` is the only large file (~1900 lines). If you only have
 time for one read, that's the one. Everything else is small and orthogonal.

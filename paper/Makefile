@@ -1,5 +1,6 @@
 # Build the SWAMPE-JAX paper in the Journal of Open Source Software (JOSS) format.
-# The paper is LaTeX-only; paper.tex is the canonical source (there is no paper.md).
+# paper.md is the JOSS submission artifact; paper.tex is kept in sync for this
+# local PDF build and arXiv. Text changes must be applied to both.
 paper.pdf: paper.tex paper.bib parity_comparison.png temperature_sensitivity_perhour_100d.png joss-logo.png
 	pdflatex -interaction=nonstopmode -halt-on-error paper.tex
 	bibtex paper

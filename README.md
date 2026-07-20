@@ -80,8 +80,8 @@ The model supports:
 
 ## 2. Package Layout
 
-This repository uses a `src/` layout. The distribution is published as
-`swampe-jax` (so you `pip install swampe-jax`), while the import name is
+This repository uses a `src/` layout. The distribution name is
+`swampe-jax` (install from source as shown below), while the import name is
 `my_swampe` and the source lives under `src/my_swampe/`. (A hyphenated
 distribution name with a snake_case import is standard Python practice, as
 with `scikit-learn` / `sklearn`.)

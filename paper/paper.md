@@ -25,7 +25,7 @@ affiliations:
     index: 1
   - name: Department of Environmental Social Sciences, Stanford Doerr School of Sustainability, Stanford University, Stanford, CA 94305, USA
     index: 2
-date: 24 June 2026
+date: 20 July 2026
 bibliography: paper.bib
 ---
 
@@ -35,13 +35,13 @@ The majority of giant exoplanets with measurable atmospheres are spin-synchroniz
 
 `SWAMPE-JAX` is a Python package for modeling the two-dimensional dynamics and forcing timescales of exoplanet atmospheres. It is a `JAX` [@jax:2018] reimplementation of `SWAMPE` [@Landgren:2022], and the two codes agree to high precision. `SWAMPE-JAX` solves the shallow-water equations for a rotating sphere using the spectral-transform method. `SWAMPE-JAX` advances absolute vorticity, divergence, and geopotential forward in time. The underlying shallow-water model has been validated for synchronously rotating hot Jupiters and applied to sub-Neptunes [@Landgren:2022; @Landgren:2023].
 
-`SWAMPE-JAX` offers two improvements over the original code. First, `SWAMPE-JAX` is differentiable: the simulated geopotential and wind fields, and any quantity derived from them, can be differentiated with respect to the planet's input physical parameters through automatic differentiation. This novel capability returns the sensitivity of the simulated atmosphere to the mechanisms that shape it, enabling sensitivity analysis and gradient-based parameter studies. Second, `SWAMPE-JAX` is roughly $32\times$ faster than the original `SWAMPE` on a single CPU core, and between ${\sim}710\times$ and ${\sim}6{,}330\times$ faster on a GPU (depending on batching).
+`SWAMPE-JAX` offers two improvements over the original code. First, `SWAMPE-JAX` is differentiable: the simulated geopotential and wind fields, and any quantity derived from them, can be differentiated with respect to the planet's input physical parameters through automatic differentiation. This novel capability returns the sensitivity of the simulated atmosphere to the mechanisms that shape it, enabling sensitivity analysis and gradient-based parameter studies. Second, `SWAMPE-JAX` is roughly $32\times$ faster than the original `SWAMPE` on a single CPU core, and between ${\sim}710\times$ and ${\sim}6{,}330\times$ faster on a GPU (the latter amortized over a batch).
 
 # Statement of need
 
 Observations showing the intrinsic coupling of radiative, chemical, and dynamical processes in exoplanet atmospheres are now ubiquitous. However, our ability to supplement and interpret observations with numerical simulations is limited by computational constraints. There is therefore a pressing need for a multidimensional forward model fast enough to sweep the broad range of conditions *a priori* possible for exoplanet atmospheres and determine the physical drivers that shape them.
 
-On one extreme (in terms of complexity), one-dimensional models are a critical tool for atmospheric characterization. Fast, parametric retrieval frameworks built on these models have revealed the composition, temperature structure, and cloud properties of exoplanets from observations [e.g., @Madhusudhan:2009; @Rustamkulov:2023]. However, they cannot capture the transport and feedbacks between radiation and dynamics that shape atmospheric structure [@Madhusudhan:2019]. On the other extreme, full three-dimensional general circulation models [e.g., @Showman:2009; @Kataria:2016; @Carone:2020] capture the full spatial structure of exoplanet atmospheres, but are extremely computationally demanding. One GCM simulation can cost tens of thousands of CPU-hours [e.g., @Roth:2024], and months of real-world wall-clock time [@Wang:2020]. This dramatically restricts the type of investigations that can be performed with this class of models.
+On one extreme (in terms of complexity), one-dimensional models are a critical tool for atmospheric characterization. Fast, parametric retrieval frameworks built on these models have revealed the composition, temperature structure, and cloud properties of exoplanets from observations [e.g., @Madhusudhan:2009; @Rustamkulov:2023]. However, they cannot capture the transport and feedbacks between radiation and dynamics that shape atmospheric structure [@Madhusudhan:2019]. On the other extreme, full three-dimensional general circulation models [e.g., @Showman:2009; @Kataria:2016; @Carone:2020] capture the full spatial structure of exoplanet atmospheres, but are extremely computationally demanding. One GCM simulation can cost tens of thousands of CPU-hours and months of real-world wall-clock time [@Wang:2020]. This dramatically restricts the type of investigations that can be performed with this class of models.
 
 Two-dimensional models can serve as a reduced-complexity, computationally tractable intermediate step between 1D retrieval frameworks and full 3D GCMs. Two-dimensional models can capture day--night circulation patterns [e.g., @Perez-Becker:2013; @Showman:2011], equatorial jet formation [@Showman:2011], and global temperature structures. Simulated phase curves and eclipse maps from these models can then be used to infer the underlying physical structure of these planets. For example, the hotspot offset [@Penn:2017], or day--night temperature differences [@Perez-Becker:2013].
 
@@ -82,7 +82,7 @@ Although the code supports both forward and backward mode automatic differentiat
 
 # Research impact statement
 
-`SWAMPE` has already been used to study atmospheric circulation on sub-Neptunes [@Landgren:2023], alongside other 2D shallow-water model investigations of close-in giant planets [e.g., @Cho:2008; @Penn:2017]. `SWAMPE-JAX` is designed to reduce simulation times and allow larger grid explorations, with the goal of more accurately interpreting observations and characterizing exoplanet atmospheres. Additionally, a gradient-informed Bayesian retrieval pipeline built on `SWAMPE-JAX` is in active development as its first downstream science application.
+`SWAMPE` has already been used to study atmospheric circulation on sub-Neptunes [@Landgren:2023], alongside other 2D shallow-water model investigations of close-in giant planets [e.g., @Cho:2008; @Penn:2017]. `SWAMPE-JAX` is designed to reduce simulation times and allow larger grid explorations, with the goal of more accurately interpreting observations and characterizing exoplanet atmospheres. Additionally, a gradient-informed Bayesian retrieval pipeline built on `SWAMPE-JAX` is in active development.
 
 # AI usage disclosure
 
